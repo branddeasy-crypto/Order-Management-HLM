@@ -1,4 +1,3 @@
-
 * {
   box-sizing: border-box;
   margin: 0;
@@ -59,6 +58,15 @@ nav {
 .main-content {
   flex: 1;
   padding: 32px;
+  overflow-x: auto;
+}
+
+.page {
+  display: none;
+}
+
+.active-page {
+  display: block;
 }
 
 header {
@@ -81,7 +89,8 @@ header p {
   margin-bottom: 28px;
 }
 
-.card {
+.card,
+.panel {
   background: white;
   padding: 22px;
   border-radius: 18px;
@@ -95,55 +104,38 @@ header p {
 }
 
 .card p {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: bold;
 }
 
 .panel {
-  background: white;
-  padding: 24px;
-  border-radius: 18px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  margin-bottom: 24px;
 }
 
 .panel h2 {
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
-.panel p {
-  color: #6b7280;
-}
-
-@media (max-width: 900px) {
-  .app {
-    flex-direction: column;
-  }
-
-  .sidebar {
-    width: 100%;
-  }
-
-  .cards {
-    grid-template-columns: 1fr;
-  }
-}
-
-.order-form {
+.form-grid,
+.filter-area {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
-.order-form input,
-.order-form select {
+.form-grid input,
+.form-grid select,
+.filter-area input,
+.filter-area select,
+.resi-input {
   padding: 12px;
   border: 1px solid #d1d5db;
   border-radius: 10px;
   font-size: 14px;
 }
 
-.order-form button {
+.form-grid button {
   grid-column: span 2;
   padding: 13px;
   border: none;
@@ -154,14 +146,15 @@ header p {
   cursor: pointer;
 }
 
-.order-form button:hover {
+.form-grid button:hover {
   background: #1d2f63;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 18px;
+  margin-top: 14px;
+  min-width: 850px;
 }
 
 th,
@@ -170,20 +163,11 @@ td {
   border-bottom: 1px solid #e5e7eb;
   text-align: left;
   font-size: 14px;
+  vertical-align: top;
 }
 
 th {
   color: #6b7280;
-}
-
-@media (max-width: 700px) {
-  .order-form {
-    grid-template-columns: 1fr;
-  }
-
-  .order-form button {
-    grid-column: span 1;
-  }
 }
 
 .status {
@@ -221,6 +205,7 @@ th {
 
 .action-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -233,6 +218,16 @@ th {
   cursor: pointer;
 }
 
+.copy-btn {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: none;
+}
+
+.copy-btn:hover {
+  background: #bfdbfe;
+}
+
 .delete-btn {
   background: #fee2e2;
   color: #b91c1c;
@@ -243,33 +238,42 @@ th {
   background: #fecaca;
 }
 
-.filter-area {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.filter-area input,
-.filter-area select {
-  padding: 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  font-size: 14px;
-}
-
-@media (max-width: 700px) {
-  .filter-area {
-    grid-template-columns: 1fr;
-  }
-}
-
-.copy-btn {
-  background: #dbeafe;
-  color: #1d4ed8;
+.success-btn {
+  background: #dcfce7;
+  color: #166534;
   border: none;
 }
 
-.copy-btn:hover {
-  background: #bfdbfe;
+.warning-btn {
+  background: #fef3c7;
+  color: #92400e;
+  border: none;
+}
+
+.empty-state {
+  color: #6b7280;
+  padding: 12px 0;
+}
+
+@media (max-width: 900px) {
+  .app {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+  }
+
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid,
+  .filter-area {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid button {
+    grid-column: span 1;
+  }
 }
