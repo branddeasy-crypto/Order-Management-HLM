@@ -10,114 +10,207 @@
   <div class="app">
     <aside class="sidebar">
       <h2>Happy Little Mind</h2>
-      <p>Admin Dashboard</p>
+      <p>Order Management</p>
 
       <nav>
-        <button class="menu active">Dashboard</button>
-        <button class="menu">Produk</button>
-        <button class="menu">Order</button>
-        <button class="menu">Customer</button>
-        <button class="menu">Pembayaran</button>
-        <button class="menu">Pengiriman</button>
+        <button class="menu active" data-page="dashboard">Dashboard</button>
+        <button class="menu" data-page="products">Produk</button>
+        <button class="menu" data-page="orders">Order</button>
+        <button class="menu" data-page="customers">Customer</button>
+        <button class="menu" data-page="payments">Pembayaran</button>
+        <button class="menu" data-page="shipping">Pengiriman</button>
       </nav>
     </aside>
 
     <main class="main-content">
-      <header>
-        <h1>Dashboard</h1>
-        <p>Ringkasan operasional order buku anak.</p>
-      </header>
+      <section id="dashboard" class="page active-page">
+        <header>
+          <h1>Dashboard</h1>
+          <p>Ringkasan operasional Happy Little Mind.</p>
+        </header>
 
-      <section class="cards">
-        <div class="card">
-          <h3>Total Order</h3>
-          <p id="totalOrders">0</p>
-        </div>
+        <section class="cards">
+          <div class="card"><h3>Total Order</h3><p id="totalOrders">0</p></div>
+          <div class="card"><h3>Menunggu DP</h3><p id="waitingDP">0</p></div>
+          <div class="card"><h3>Ready Kirim</h3><p id="readyShipping">0</p></div>
+          <div class="card"><h3>Omzet</h3><p id="monthlyRevenue">Rp0</p></div>
+        </section>
 
-        <div class="card">
-          <h3>Menunggu DP</h3>
-          <p id="waitingDP">0</p>
-        </div>
-
-        <div class="card">
-          <h3>Ready Kirim</h3>
-          <p id="readyShipping">0</p>
-        </div>
-
-        <div class="card">
-          <h3>Omzet Bulan Ini</h3>
-          <p id="monthlyRevenue">Rp0</p>
-        </div>
+        <section class="panel">
+          <h2>Order Terbaru</h2>
+          <div id="latestOrders"></div>
+        </section>
       </section>
 
-      <section class="panel">
-  <h2>Input Order Baru</h2>
+      <section id="products" class="page">
+        <header>
+          <h1>Produk</h1>
+          <p>Kelola daftar buku dan harga.</p>
+        </header>
 
-  <form id="orderForm" class="order-form">
-    <input type="text" id="customerName" placeholder="Nama Customer" required />
-    <input type="text" id="whatsapp" placeholder="Nomor WhatsApp" required />
-    <input type="text" id="bookTitle" placeholder="Judul Buku" required />
-    <input type="number" id="quantity" placeholder="Qty" required />
-    <input type="number" id="price" placeholder="Harga Satuan" required />
+        <section class="panel">
+          <h2>Input Produk</h2>
+          <form id="productForm" class="form-grid">
+            <input type="text" id="productTitle" placeholder="Judul Buku" required />
+            <input type="number" id="productPrice" placeholder="Harga Jual" required />
+            <input type="number" id="productStock" placeholder="Stock / Kuota PO" required />
+            <input type="text" id="productEta" placeholder="ETA / Keterangan" />
+            <button type="submit">Simpan Produk</button>
+          </form>
+        </section>
 
-    <th>Status</th>
-    <th>Aksi</th>
-      <select id="status" required>
-        <option value="Menunggu DP">Menunggu DP</option>
-        <option value="DP Masuk">DP Masuk</option>
-        <option value="Ready Kirim">Ready Kirim</option>
-        <option value="Dikirim">Dikirim</option>
-        <option value="Selesai">Selesai</option>
-        </select>
+        <section class="panel">
+          <h2>Daftar Produk</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Judul</th>
+                <th>Harga</th>
+                <th>Stock</th>
+                <th>ETA</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="productTableBody"></tbody>
+          </table>
+        </section>
+      </section>
 
-    <button type="submit">Simpan Order</button>
-  </form>
-</section>
+      <section id="orders" class="page">
+        <header>
+          <h1>Order</h1>
+          <p>Input dan kelola pesanan customer.</p>
+        </header>
 
-<section class="panel">
-  <h2>Cari & Filter Order</h2>
+        <section class="panel">
+          <h2>Input Order Baru</h2>
+          <form id="orderForm" class="form-grid">
+            <input type="text" id="customerName" placeholder="Nama Customer" required />
+            <input type="text" id="whatsapp" placeholder="Nomor WhatsApp" required />
 
-  <div class="filter-area">
-    <input
-      type="text"
-      id="searchInput"
-      placeholder="Cari nama customer, nomor WA, atau judul buku..."
-    />
+            <select id="bookSelect" required>
+              <option value="">Pilih Produk</option>
+            </select>
 
-    <select id="statusFilter">
-      <option value="">Semua Status</option>
-      <option value="Menunggu DP">Menunggu DP</option>
-      <option value="DP Masuk">DP Masuk</option>
-      <option value="Ready Kirim">Ready Kirim</option>
-      <option value="Dikirim">Dikirim</option>
-      <option value="Selesai">Selesai</option>
-    </select>
-  </div>
-</section>
-      
-<section class="panel">
-  <h2>Daftar Order</h2>
+            <input type="number" id="quantity" placeholder="Qty" required />
+            <input type="number" id="price" placeholder="Harga Satuan" required />
 
-  <table>
-    <thead>
-      <tr>
-      <th>Invoice</th>
-      <th>Customer</th>
-      <th>WhatsApp</th>
-      <th>Buku</th>
-      <th>Qty</th>
-      <th>Total</th>
-      <th>Status</th>
-      <th>Aksi</th>
-      </tr>
-    </thead>
-    <tbody id="orderTableBody">
-      <tr>
-        <td colspan="8">Belum ada order.</td>
-      </tr>
-    </tbody>
-  </table>
-</section>
+            <select id="status">
+              <option value="Menunggu DP">Menunggu DP</option>
+              <option value="DP Masuk">DP Masuk</option>
+              <option value="Ready Kirim">Ready Kirim</option>
+              <option value="Dikirim">Dikirim</option>
+              <option value="Selesai">Selesai</option>
+            </select>
+
+            <button type="submit">Simpan Order</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h2>Cari & Filter Order</h2>
+          <div class="filter-area">
+            <input type="text" id="searchInput" placeholder="Cari customer, WA, invoice, atau judul buku..." />
+            <select id="statusFilter">
+              <option value="">Semua Status</option>
+              <option value="Menunggu DP">Menunggu DP</option>
+              <option value="DP Masuk">DP Masuk</option>
+              <option value="Ready Kirim">Ready Kirim</option>
+              <option value="Dikirim">Dikirim</option>
+              <option value="Selesai">Selesai</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Daftar Order</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Customer</th>
+                <th>WhatsApp</th>
+                <th>Buku</th>
+                <th>Qty</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="orderTableBody"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="customers" class="page">
+        <header>
+          <h1>Customer</h1>
+          <p>Database customer otomatis dari order.</p>
+        </header>
+
+        <section class="panel">
+          <h2>Daftar Customer</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>WhatsApp</th>
+                <th>Total Order</th>
+                <th>Total Belanja</th>
+              </tr>
+            </thead>
+            <tbody id="customerTableBody"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="payments" class="page">
+        <header>
+          <h1>Pembayaran</h1>
+          <p>Monitoring status pembayaran customer.</p>
+        </header>
+
+        <section class="panel">
+          <h2>Daftar Pembayaran</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Customer</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="paymentTableBody"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="shipping" class="page">
+        <header>
+          <h1>Pengiriman</h1>
+          <p>Monitoring order yang siap dikirim dan sudah dikirim.</p>
+        </header>
+
+        <section class="panel">
+          <h2>Daftar Pengiriman</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Customer</th>
+                <th>WhatsApp</th>
+                <th>Buku</th>
+                <th>Status</th>
+                <th>Resi</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="shippingTableBody"></tbody>
+          </table>
+        </section>
+      </section>
     </main>
   </div>
 
