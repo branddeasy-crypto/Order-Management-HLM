@@ -141,7 +141,11 @@ function renderOrders() {
             <option value="Dikirim">Dikirim</option>
             <option value="Selesai">Selesai</option>
           </select>
-
+        
+          <button class="copy-btn" onclick="copyInvoice(${originalIndex})">
+            Copy Invoice
+          </button>
+        
           <button class="delete-btn" onclick="deleteOrder(${originalIndex})">
             Hapus
           </button>
@@ -169,6 +173,36 @@ function deleteOrder(index) {
   orders.splice(index, 1);
   saveOrders();
   renderOrders();
+}
+
+function copyInvoice(index) {
+  const order = orders[index];
+
+  const invoiceText = `
+Halo Kak ${order.customerName},
+
+Berikut detail pesanan Happy Little Mind:
+
+Invoice: ${order.invoiceNumber}
+Judul Buku: ${order.bookTitle}
+Qty: ${order.quantity}
+Harga Satuan: ${formatRupiah(order.price)}
+Total: ${formatRupiah(order.total)}
+Status: ${order.status}
+
+Silakan melakukan pembayaran ke rekening berikut:
+
+BCA 1234567890
+a.n. Happy Little Mind
+
+Setelah pembayaran, mohon kirimkan bukti transfer ya Kak.
+
+Terima kasih 😊
+  `;
+
+  navigator.clipboard.writeText(invoiceText.trim());
+
+  alert("Invoice berhasil dicopy. Tinggal paste ke WhatsApp customer.");
 }
 
 orderForm.addEventListener("submit", function (event) {
