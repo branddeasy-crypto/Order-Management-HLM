@@ -127,3 +127,61 @@ header p {
     grid-template-columns: 1fr;
   }
 }
+
+.order-form {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.order-form input,
+.order-form select {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.order-form button {
+  grid-column: span 2;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: #243b7b;
+  color: white;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.order-form button:hover {
+  background: #1d2f63;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 18px;
+}
+
+th,
+td {
+  padding: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  font-size: 14px;
+}
+
+th {
+  color: #6b7280;
+}
+
+@media (max-width: 700px) {
+  .order-form {
+    grid-template-columns: 1fr;
+  }
+
+  .order-form button {
+    grid-column: span 1;
+  }
+}
