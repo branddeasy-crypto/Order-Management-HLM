@@ -107,7 +107,7 @@ function renderOrders() {
   if (filteredOrders.length === 0) {
     orderTableBody.innerHTML = `
       <tr>
-        <td colspan="7">Tidak ada order yang sesuai.</td>
+        <td colspan="8">Tidak ada order yang sesuai.</td>
       </tr>
     `;
     return;
