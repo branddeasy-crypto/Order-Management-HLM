@@ -51,9 +51,48 @@
       </section>
 
       <section class="panel">
-        <h2>Order Terbaru</h2>
-        <p>Belum ada order yang masuk.</p>
-      </section>
+  <h2>Input Order Baru</h2>
+
+  <form id="orderForm" class="order-form">
+    <input type="text" id="customerName" placeholder="Nama Customer" required />
+    <input type="text" id="whatsapp" placeholder="Nomor WhatsApp" required />
+    <input type="text" id="bookTitle" placeholder="Judul Buku" required />
+    <input type="number" id="quantity" placeholder="Qty" required />
+    <input type="number" id="price" placeholder="Harga Satuan" required />
+
+    <select id="status">
+      <option value="Menunggu DP">Menunggu DP</option>
+      <option value="DP Masuk">DP Masuk</option>
+      <option value="Ready Kirim">Ready Kirim</option>
+      <option value="Dikirim">Dikirim</option>
+      <option value="Selesai">Selesai</option>
+    </select>
+
+    <button type="submit">Simpan Order</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Daftar Order</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Customer</th>
+        <th>WhatsApp</th>
+        <th>Buku</th>
+        <th>Qty</th>
+        <th>Total</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="orderTableBody">
+      <tr>
+        <td colspan="6">Belum ada order.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
     </main>
   </div>
 
