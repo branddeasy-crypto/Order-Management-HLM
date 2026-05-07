@@ -1,6 +1,8 @@
 console.log("Happy Little Mind Admin App aktif");
 const orderForm = document.getElementById("orderForm");
 const orderTableBody = document.getElementById("orderTableBody");
+const searchInput = document.getElementById("searchInput");
+const statusFilter = document.getElementById("statusFilter");
 
 let orders = JSON.parse(localStorage.getItem("orders")) || [];
 
@@ -64,13 +66,31 @@ function getStatusClass(status) {
   }
 }
 
+searchInput.addEventListener("input", renderOrders);
+statusFilter.addEventListener("change", renderOrders);
+
 function renderOrders() {
   updateDashboard();
 
-  if (orders.length === 0) {
+  const searchKeyword = searchInput.value.toLowerCase();
+  const selectedStatus = statusFilter.value;
+
+  const filteredOrders = orders.filter((order) => {
+    const matchSearch =
+      order.customerName.toLowerCase().includes(searchKeyword) ||
+      order.whatsapp.toLowerCase().includes(searchKeyword) ||
+      order.bookTitle.toLowerCase().includes(searchKeyword);
+
+    const matchStatus =
+      selectedStatus === "" || order.status === selectedStatus;
+
+    return matchSearch && matchStatus;
+  });
+
+  if (filteredOrders.length === 0) {
     orderTableBody.innerHTML = `
       <tr>
-        <td colspan="7">Belum ada order.</td>
+        <td colspan="7">Tidak ada order yang sesuai.</td>
       </tr>
     `;
     return;
@@ -78,7 +98,8 @@ function renderOrders() {
 
   orderTableBody.innerHTML = "";
 
-  orders.forEach((order, index) => {
+  filteredOrders.forEach((order) => {
+    const originalIndex = orders.indexOf(order);
     const row = document.createElement("tr");
 
     row.innerHTML = `
@@ -94,7 +115,7 @@ function renderOrders() {
       </td>
       <td>
         <div class="action-buttons">
-          <select class="status-select" onchange="changeStatus(${index}, this.value)">
+          <select class="status-select" onchange="changeStatus(${originalIndex}, this.value)">
             <option value="">Ubah Status</option>
             <option value="Menunggu DP">Menunggu DP</option>
             <option value="DP Masuk">DP Masuk</option>
@@ -103,7 +124,7 @@ function renderOrders() {
             <option value="Selesai">Selesai</option>
           </select>
 
-          <button class="delete-btn" onclick="deleteOrder(${index})">
+          <button class="delete-btn" onclick="deleteOrder(${originalIndex})">
             Hapus
           </button>
         </div>
