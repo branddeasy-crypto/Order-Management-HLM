@@ -263,3 +263,13 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+.copy-btn {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: none;
+}
+
+.copy-btn:hover {
+  background: #bfdbfe;
+}
