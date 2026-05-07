@@ -18,6 +18,23 @@ function formatRupiah(number) {
   }).format(number);
 }
 
+function generateInvoiceNumber() {
+  const today = new Date();
+
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const date = String(today.getDate()).padStart(2, "0");
+
+  const dateCode = `${year}${month}${date}`;
+  const dailyOrders = orders.filter((order) =>
+    order.invoiceNumber && order.invoiceNumber.includes(dateCode)
+  );
+
+  const sequence = String(dailyOrders.length + 1).padStart(3, "0");
+
+  return `HLM-${dateCode}-${sequence}`;
+}
+
 function updateDashboard() {
   const totalOrders = orders.length;
 
@@ -103,6 +120,7 @@ function renderOrders() {
     const row = document.createElement("tr");
 
     row.innerHTML = `
+      <td>${order.invoiceNumber || "-"}</td>
       <td>${order.customerName}</td>
       <td>${order.whatsapp}</td>
       <td>${order.bookTitle}</td>
@@ -166,13 +184,14 @@ orderForm.addEventListener("submit", function (event) {
   const total = quantity * price;
 
   const newOrder = {
-    customerName,
-    whatsapp,
-    bookTitle,
-    quantity,
-    price,
-    total,
-    status
+  invoiceNumber: generateInvoiceNumber(),
+  customerName,
+  whatsapp,
+  bookTitle,
+  quantity,
+  price,
+  total,
+  status
   };
 
   orders.push(newOrder);
