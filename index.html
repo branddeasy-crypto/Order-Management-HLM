@@ -62,12 +62,13 @@
 
     <th>Status</th>
     <th>Aksi</th>
-      <option value="Menunggu DP">Menunggu DP</option>
-      <option value="DP Masuk">DP Masuk</option>
-      <option value="Ready Kirim">Ready Kirim</option>
-      <option value="Dikirim">Dikirim</option>
-      <option value="Selesai">Selesai</option>
-    </select>
+      <select id="status" required>
+        <option value="Menunggu DP">Menunggu DP</option>
+        <option value="DP Masuk">DP Masuk</option>
+        <option value="Ready Kirim">Ready Kirim</option>
+        <option value="Dikirim">Dikirim</option>
+        <option value="Selesai">Selesai</option>
+        </select>
 
     <button type="submit">Simpan Order</button>
   </form>
@@ -100,13 +101,14 @@
   <table>
     <thead>
       <tr>
-        <th>Invoice</th>
-        <th>Customer</th>
-        <th>WhatsApp</th>
-        <th>Buku</th>
-        <th>Qty</th>
-        <th>Total</th>
-        <th>Status</th>
+      <th>Invoice</th>
+      <th>Customer</th>
+      <th>WhatsApp</th>
+      <th>Buku</th>
+      <th>Qty</th>
+      <th>Total</th>
+      <th>Status</th>
+      <th>Aksi</th>
       </tr>
     </thead>
     <tbody id="orderTableBody">
