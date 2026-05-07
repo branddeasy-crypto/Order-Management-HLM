@@ -242,3 +242,24 @@ th {
 .delete-btn:hover {
   background: #fecaca;
 }
+
+.filter-area {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.filter-area input,
+.filter-area select {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+@media (max-width: 700px) {
+  .filter-area {
+    grid-template-columns: 1fr;
+  }
+}
