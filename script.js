@@ -65,19 +65,20 @@ function getStatusClass(status) {
 }
 
 function renderOrders() {
+  updateDashboard();
+
   if (orders.length === 0) {
     orderTableBody.innerHTML = `
       <tr>
-        <td colspan="6">Belum ada order.</td>
+        <td colspan="7">Belum ada order.</td>
       </tr>
     `;
     return;
-    updateDashboard();
   }
 
   orderTableBody.innerHTML = "";
 
-  orders.forEach((order) => {
+  orders.forEach((order, index) => {
     const row = document.createElement("tr");
 
     row.innerHTML = `
@@ -87,14 +88,48 @@ function renderOrders() {
       <td>${order.quantity}</td>
       <td>${formatRupiah(order.total)}</td>
       <td>
-  <span class="${getStatusClass(order.status)}">
-    ${order.status}
-  </span>
-</td>
+        <span class="${getStatusClass(order.status)}">
+          ${order.status}
+        </span>
+      </td>
+      <td>
+        <div class="action-buttons">
+          <select class="status-select" onchange="changeStatus(${index}, this.value)">
+            <option value="">Ubah Status</option>
+            <option value="Menunggu DP">Menunggu DP</option>
+            <option value="DP Masuk">DP Masuk</option>
+            <option value="Ready Kirim">Ready Kirim</option>
+            <option value="Dikirim">Dikirim</option>
+            <option value="Selesai">Selesai</option>
+          </select>
+
+          <button class="delete-btn" onclick="deleteOrder(${index})">
+            Hapus
+          </button>
+        </div>
+      </td>
     `;
 
     orderTableBody.appendChild(row);
   });
+}
+
+function changeStatus(index, newStatus) {
+  if (!newStatus) return;
+
+  orders[index].status = newStatus;
+  saveOrders();
+  renderOrders();
+}
+
+function deleteOrder(index) {
+  const confirmDelete = confirm("Yakin mau hapus order ini?");
+
+  if (!confirmDelete) return;
+
+  orders.splice(index, 1);
+  saveOrders();
+  renderOrders();
 }
 
 orderForm.addEventListener("submit", function (event) {
