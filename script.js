@@ -16,6 +16,54 @@ function formatRupiah(number) {
   }).format(number);
 }
 
+function updateDashboard() {
+  const totalOrders = orders.length;
+
+  const waitingDP = orders.filter(
+    (order) => order.status === "Menunggu DP"
+  ).length;
+
+  const readyShipping = orders.filter(
+    (order) => order.status === "Ready Kirim"
+  ).length;
+
+  const monthlyRevenue = orders.reduce(
+    (total, order) => total + order.total,
+    0
+  );
+
+  document.getElementById("totalOrders").textContent = totalOrders;
+
+  document.getElementById("waitingDP").textContent = waitingDP;
+
+  document.getElementById("readyShipping").textContent = readyShipping;
+
+  document.getElementById("monthlyRevenue").textContent =
+    formatRupiah(monthlyRevenue);
+}
+
+function getStatusClass(status) {
+  switch (status) {
+    case "Menunggu DP":
+      return "status status-menunggu";
+
+    case "DP Masuk":
+      return "status status-dp";
+
+    case "Ready Kirim":
+      return "status status-ready";
+
+    case "Dikirim":
+      return "status status-dikirim";
+
+    case "Selesai":
+      return "status status-selesai";
+
+    default:
+      return "status";
+  }
+}
+
 function renderOrders() {
   if (orders.length === 0) {
     orderTableBody.innerHTML = `
@@ -24,6 +72,7 @@ function renderOrders() {
       </tr>
     `;
     return;
+    updateDashboard();
   }
 
   orderTableBody.innerHTML = "";
@@ -37,7 +86,11 @@ function renderOrders() {
       <td>${order.bookTitle}</td>
       <td>${order.quantity}</td>
       <td>${formatRupiah(order.total)}</td>
-      <td>${order.status}</td>
+      <td>
+  <span class="${getStatusClass(order.status)}">
+    ${order.status}
+  </span>
+</td>
     `;
 
     orderTableBody.appendChild(row);
