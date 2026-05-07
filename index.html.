@@ -1,1 +1,62 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Happy Little Mind Admin</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h2>Happy Little Mind</h2>
+      <p>Admin Dashboard</p>
 
+      <nav>
+        <button class="menu active">Dashboard</button>
+        <button class="menu">Produk</button>
+        <button class="menu">Order</button>
+        <button class="menu">Customer</button>
+        <button class="menu">Pembayaran</button>
+        <button class="menu">Pengiriman</button>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <header>
+        <h1>Dashboard</h1>
+        <p>Ringkasan operasional order buku anak.</p>
+      </header>
+
+      <section class="cards">
+        <div class="card">
+          <h3>Total Order</h3>
+          <p>0</p>
+        </div>
+
+        <div class="card">
+          <h3>Menunggu DP</h3>
+          <p>0</p>
+        </div>
+
+        <div class="card">
+          <h3>Ready Kirim</h3>
+          <p>0</p>
+        </div>
+
+        <div class="card">
+          <h3>Omzet Bulan Ini</h3>
+          <p>Rp0</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Order Terbaru</h2>
+        <p>Belum ada order yang masuk.</p>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
