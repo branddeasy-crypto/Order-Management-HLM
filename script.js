@@ -2,7 +2,11 @@ console.log("Happy Little Mind Admin App aktif");
 const orderForm = document.getElementById("orderForm");
 const orderTableBody = document.getElementById("orderTableBody");
 
-let orders = [];
+let orders = JSON.parse(localStorage.getItem("orders")) || [];
+
+function saveOrders() {
+  localStorage.setItem("orders", JSON.stringify(orders));
+}
 
 function formatRupiah(number) {
   return new Intl.NumberFormat("id-ID", {
@@ -63,7 +67,9 @@ orderForm.addEventListener("submit", function (event) {
   };
 
   orders.push(newOrder);
-
+  saveOrders();
   renderOrders();
   orderForm.reset();
 });
+
+renderOrders();
