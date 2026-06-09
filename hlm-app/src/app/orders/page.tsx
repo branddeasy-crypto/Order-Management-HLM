@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { Customer, Book, Order, OrderStatus, formatIDR } from "@/lib/types";
+import { exportToCSV, exportToExcel } from "@/lib/importExport";
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
   pending: "Pending",
@@ -72,6 +73,21 @@ export default function OrdersPage() {
   const groups = Array.from(new Set(customers.map((c) => c.whatsapp_group).filter(Boolean))) as string[];
   const filtered = groupFilter ? orders.filter((o) => o.customers?.whatsapp_group === groupFilter) : orders;
 
+  const ORDER_HEADERS = ["Customer", "Grup", "Publisher", "Judul Buku", "Format", "Qty", "Harga Satuan", "Subtotal", "Status"];
+  function ordersToRows(list: Order[]) {
+    return list.map((o) => [
+      o.customers?.whatsapp_name ?? "",
+      o.customers?.whatsapp_group ?? "",
+      o.books?.publisher ?? "",
+      o.books?.title ?? "",
+      o.books?.format ?? "",
+      o.qty,
+      o.books?.price_idr ?? 0,
+      (o.books?.price_idr ?? 0) * o.qty,
+      STATUS_LABEL[o.status],
+    ]);
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-1">Compile Order</h1>
@@ -108,6 +124,12 @@ export default function OrdersPage() {
       </form>
 
       {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
+
+      <div className="flex flex-wrap gap-2 mb-4 items-center">
+        <span className="text-sm text-gray-500">Export rekap:</span>
+        <button onClick={() => exportToCSV("rekap-order.csv", ORDER_HEADERS, ordersToRows(filtered))} className="px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50">📄 CSV</button>
+        <button onClick={() => exportToExcel("rekap-order.xlsx", "Order", ORDER_HEADERS, ordersToRows(filtered))} className="px-3 py-1.5 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50">📊 Excel</button>
+      </div>
 
       <div className="flex items-center gap-3 mb-3">
         <span className="text-sm text-gray-600">Filter grup:</span>
