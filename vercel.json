@@ -1,6 +1,0 @@
-{
-  "buildCommand": "cd hlm-app && npm install && npm run build",
-  "outputDirectory": "hlm-app/.next",
-  "installCommand": "cd hlm-app && npm install",
-  "framework": "nextjs"
-}
