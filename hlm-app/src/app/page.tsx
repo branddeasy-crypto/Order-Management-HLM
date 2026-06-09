@@ -1,110 +1,139 @@
-import Link from "next/link";
+"use client";
 
-const CARDS = [
-  {
-    href: "/customers",
-    title: "Master Customer",
-    desc: "Data WA, alamat, penerima paket, dan grup asal customer",
-    icon: "👩‍👧",
-    color: "from-pink-400 to-rose-500",
-    bg: "bg-pink-50",
-    border: "border-pink-200",
-  },
-  {
-    href: "/books",
-    title: "Buku / PO",
-    desc: "Daftar buku per batch — publisher, ISBN, harga, ETA, status stok",
-    icon: "📚",
-    color: "from-violet-400 to-purple-600",
-    bg: "bg-violet-50",
-    border: "border-violet-200",
-  },
-  {
-    href: "/orders",
-    title: "Compile Order",
-    desc: "Rekap pesanan customer — pengganti rekap manual WA ke Excel",
-    icon: "📋",
-    color: "from-blue-400 to-indigo-500",
-    bg: "bg-blue-50",
-    border: "border-blue-200",
-  },
-  {
-    href: "/invoices",
-    title: "Invoice DP & Pelunasan",
-    desc: "Generate invoice siap-kirim ke WhatsApp per customer",
-    icon: "🧾",
-    color: "from-amber-400 to-orange-500",
-    bg: "bg-amber-50",
-    border: "border-amber-200",
-  },
-  {
-    href: "/shipments",
-    title: "Antrian Pengiriman",
-    desc: "Antrian first-pay-first-queue & slip kemas otomatis",
-    icon: "📦",
-    color: "from-teal-400 to-cyan-500",
-    bg: "bg-teal-50",
-    border: "border-teal-200",
-  },
-  {
-    href: "/tracking",
-    title: "Resi / Tracking",
-    desc: "Input & rekap nomor resi per bulan per customer",
-    icon: "🚚",
-    color: "from-green-400 to-emerald-500",
-    bg: "bg-green-50",
-    border: "border-green-200",
-  },
+import { useEffect, useMemo, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabase";
+import { Customer, Order, Shipment } from "@/lib/types";
+
+const MONTHS = [
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
 ];
 
-export default function Home() {
+export default function TrackingPage() {
+  const supabase = supabaseBrowser();
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [month, setMonth] = useState(new Date().getMonth());
+  const [editing, setEditing] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<Record<string, boolean>>({});
+
+  async function load() {
+    const [s, o] = await Promise.all([
+      supabase.from("shipments").select("*"),
+      supabase.from("orders").select("*, customers(*), books(*)"),
+    ]);
+    setShipments((s.data as Shipment[]) ?? []);
+    setOrders((o.data as unknown as Order[]) ?? []);
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, []);
+
+  const rows = useMemo(() => {
+    return shipments
+      .map((s) => {
+        const order = orders.find((o) => o.id === s.order_id);
+        return { shipment: s, customer: order?.customers as Customer | undefined };
+      })
+      .filter((r) => {
+        if (!r.shipment.shipped_at) return true; // show unshipped in all months
+        return new Date(r.shipment.shipped_at).getMonth() === month;
+      });
+  }, [shipments, orders, month]);
+
+  async function saveTracking(id: string) {
+    const value = editing[id];
+    if (value === undefined) return;
+    await supabase.from("shipments").update({
+      tracking_number: value,
+      shipped_at: new Date().toISOString().slice(0, 10),
+    }).eq("id", id);
+    setEditing((e) => { const n = { ...e }; delete n[id]; return n; });
+    setSaved((s) => ({ ...s, [id]: true }));
+    setTimeout(() => setSaved((s) => { const n = { ...s }; delete n[id]; return n; }), 2000);
+    load();
+  }
+
+  const hasResi = rows.filter(r => r.shipment.tracking_number);
+  const noResi = rows.filter(r => !r.shipment.tracking_number);
+
   return (
     <div>
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <span className="text-4xl">🌟</span>
-          <div>
-            <h1 className="text-3xl font-bold text-purple-800">Selamat Datang!</h1>
-            <p className="text-purple-500 text-sm font-medium">Happy Little Minds — Order Manager</p>
-          </div>
+      {/* Page header */}
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center text-xl shadow-sm">🚚</div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Resi / Tracking Number</h1>
+          <p className="text-sm text-gray-400">Input & rekap nomor resi pengiriman per bulan.</p>
         </div>
-        <p className="text-gray-500 text-sm max-w-xl">
-          Pengganti alur manual rekap WhatsApp → Excel → Invoice → Antrian Kirim.
-          Semua proses penjualan buku import anak ada di sini. 🎉
-        </p>
+      </div>
+      <div className="h-1 w-16 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 mb-6" />
+
+      {/* Month filter */}
+      <div className="flex items-center gap-3 mb-6">
+        <label className="text-sm flex items-center gap-2">
+          <span className="text-gray-600 font-medium text-xs">Filter Bulan:</span>
+          <select className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100"
+            value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+            {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
+          </select>
+        </label>
+        <div className="flex gap-2 text-xs">
+          <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">{hasResi.length} sudah ada resi</span>
+          <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">{noResi.length} belum ada resi</span>
+        </div>
       </div>
 
-      {/* Quick info banner */}
-      <div className="rounded-2xl p-4 mb-8 flex items-center gap-3 border border-purple-200"
-        style={{ background: "linear-gradient(135deg, #f5f3ff 0%, #fdf4ff 100%)" }}>
-        <span className="text-2xl">💡</span>
-        <p className="text-purple-700 text-sm">
-          <strong>Alur kerja:</strong> Tambah Customer → Tambah Buku/PO → Compile Order → Buat Invoice DP → Konfirmasi Bayar → Invoice Pelunasan → Antrian Kirim → Input Resi
-        </p>
-      </div>
-
-      {/* Module cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {CARDS.map((c) => (
-          <Link
-            key={c.href}
-            href={c.href}
-            className={`block rounded-2xl border ${c.border} ${c.bg} p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 group`}
-          >
-            {/* Icon with gradient circle */}
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${c.color} flex items-center justify-center text-2xl mb-3 shadow-sm group-hover:scale-110 transition-transform`}>
-              {c.icon}
-            </div>
-            <div className="font-bold text-gray-800 mb-1 text-base">{c.title}</div>
-            <div className="text-sm text-gray-500 leading-relaxed">{c.desc}</div>
-          </Link>
-        ))}
-      </div>
-
-      {/* Footer note */}
-      <div className="mt-10 text-center text-xs text-gray-400">
-        Made with ❤️ for Happy Little Minds team (Deasy & Vita)
+      <div className="bg-white border border-gray-100 rounded-2xl overflow-x-auto shadow-sm">
+        <div className="px-5 py-3 border-b border-gray-100">
+          <span className="text-sm font-semibold text-gray-600">Daftar Resi — {MONTHS[month]}</span>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-gray-400 uppercase tracking-wide">
+            <tr>
+              <th className="px-5 py-3">Customer</th>
+              <th className="px-5 py-3">Ekspedisi</th>
+              <th className="px-5 py-3">No. Resi</th>
+              <th className="px-5 py-3">Tanggal Kirim</th>
+              <th className="px-5 py-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td className="px-5 py-8 text-gray-400 text-center" colSpan={5}>🚚 Tidak ada data resi bulan {MONTHS[month]}.</td></tr>
+            ) : rows.map(({ shipment, customer }) => (
+              <tr key={shipment.id} className={`border-t border-gray-50 transition-colors ${shipment.tracking_number ? "hover:bg-green-50/30" : "hover:bg-amber-50/30"}`}>
+                <td className="px-5 py-3 font-medium text-gray-800">{customer?.whatsapp_name ?? "-"}</td>
+                <td className="px-5 py-3">
+                  {shipment.expedition ? (
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{shipment.expedition}</span>
+                  ) : <span className="text-gray-400">-</span>}
+                </td>
+                <td className="px-5 py-3">
+                  <input
+                    className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 bg-white"
+                    value={editing[shipment.id] ?? shipment.tracking_number ?? ""}
+                    onChange={(e) => setEditing((ed) => ({ ...ed, [shipment.id]: e.target.value }))}
+                    placeholder="Masukkan no resi"
+                  />
+                </td>
+                <td className="px-5 py-3 text-gray-500 text-xs">
+                  {shipment.shipped_at ? (
+                    <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">{shipment.shipped_at}</span>
+                  ) : (
+                    <span className="bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full">Belum terkirim</span>
+                  )}
+                </td>
+                <td className="px-5 py-3 text-right">
+                  <button onClick={() => saveTracking(shipment.id)}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${saved[shipment.id] ? "bg-green-100 text-green-700" : "bg-green-50 text-green-700 hover:bg-green-100"}`}>
+                    {saved[shipment.id] ? "✅ Tersimpan!" : "💾 Simpan"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
