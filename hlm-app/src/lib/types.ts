@@ -21,7 +21,7 @@ export type Book = {
   status: 'available' | 'oos'
 }
 
-export type OrderStatus = 'pending' | 'confirmed' | 'dp_paid' | 'paid_off' | 'queued' | 'shipped'
+export type OrderStatus = 'pending' | 'confirmed' | 'hold' | 'dp_paid' | 'paid_off' | 'queued' | 'shipped'
 
 export type Order = {
   id: string
@@ -29,6 +29,7 @@ export type Order = {
   book_id: string
   qty: number
   status: OrderStatus
+  note: string | null
   customers?: Customer
   books?: Book
 }
