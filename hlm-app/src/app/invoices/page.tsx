@@ -1,3 +1,4 @@
+```tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -46,6 +47,7 @@ export default function InvoicesPage() {
   const [customDpAmount, setCustomDpAmount] = useState("");
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [receivedAmount, setReceivedAmount] = useState("");
 
   async function load() {
     setLoading(true);
@@ -100,6 +102,13 @@ export default function InvoicesPage() {
   const totalDpOrders = dpOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
   const totalPelunasanOrders = pelunasanOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
 
+  // Tagihan sebelum dikurangi saldo deposit (kelebihan transfer sebelumnya)
+  const billedMixDpAmount = dpPercent === "custom" ? dpAmount : Math.round(totalDpOrders * (Number(dpPercent) / 100));
+  const billedAmount = kind === "pelunasan" ? sisaAkhir : kind === "dp" ? dpAmount : (totalPelunasanOrders + billedMixDpAmount + Number(shippingCost || 0) + Number(packingFee || 0));
+  const creditAvailable = customer?.credit_balance ?? 0;
+  const creditUsed = Math.min(creditAvailable, Math.max(0, billedAmount));
+  const amountAfterCredit = billedAmount - creditUsed;
+
   // Auto-detect jenis invoice (hanya untuk judul) berdasarkan buku yang dipilih
   useEffect(() => {
     if (selectedOrders.length === 0) return;
@@ -126,6 +135,10 @@ export default function InvoicesPage() {
         ``,
         `Total Tagihan: ${formatIDR(total)}`,
         `DP yang harus dibayar: ${formatIDR(dpAmount)}`,
+        ...(creditUsed > 0 ? [
+          `Dikurangi Saldo Deposit: -${formatIDR(creditUsed)}`,
+          `*DP Setelah Saldo Deposit: ${formatIDR(amountAfterCredit)}*`,
+        ] : []),
         `Sisa setelah DP: ${formatIDR(total - dpAmount)}`,
         ...(estimasiBerat ? [`Estimasi Berat: ${estimasiBerat}`] : []),
         ...(deadlinePayment ? [`Deadline Pembayaran: ${deadlinePayment}`] : []),
@@ -147,7 +160,11 @@ export default function InvoicesPage() {
         `Ongkos Kirim: ${formatIDR(Number(shippingCost || 0))}`,
         ...(packingFee ? [`Packing Fee: ${formatIDR(Number(packingFee || 0))}`] : []),
         ...(estimasiBerat ? [`Estimasi Berat: ${estimasiBerat}`] : []),
-        `*Sisa yang harus dilunasi: ${formatIDR(sisaAkhir)}*`,
+        `Sisa yang harus dilunasi: ${formatIDR(sisaAkhir)}`,
+        ...(creditUsed > 0 ? [
+          `Dikurangi Saldo Deposit: -${formatIDR(creditUsed)}`,
+          `*Total Pelunasan Setelah Saldo Deposit: ${formatIDR(amountAfterCredit)}*`,
+        ] : []),
         ...(deadlinePayment ? [`Deadline Pembayaran: ${deadlinePayment}`] : []),
         ``,
         `Pembayaran ke: ${bankAccount}`,
@@ -183,12 +200,15 @@ export default function InvoicesPage() {
       ] : []),
       `Ongkos Kirim ${formatIDR(Number(shippingCost || 0))}`,
       ...(packingFee ? [`Packing fee ${formatIDR(Number(packingFee || 0))}`] : []),
-      `*Total Pembayaran ${formatIDR(totalPembayaran)}*`,
+      ...(creditUsed > 0 ? [
+        `Dikurangi Saldo Deposit: -${formatIDR(creditUsed)}`,
+        `*Total Pembayaran Setelah Saldo Deposit: ${formatIDR(amountAfterCredit)}*`,
+      ] : [`*Total Pembayaran ${formatIDR(totalPembayaran)}*`]),
       ...(estimasiBerat ? [``, `Estimasi Berat: ${estimasiBerat}`] : []),
       ``,
       `Mohon selesaikan pembayaran ke rek Seabank 901335299369 atau BCA 5930374395 an Deasy Sherliya Trajadi${deadlinePayment ? ` paling lambat ${deadlinePayment}` : ""} 🙏`,
     ].join("\n");
-  }, [customer, selectedOrders, kind, dpAmount, dpPercent, total, totalDp, shippingCost, packingFee, estimasiBerat, deadlinePayment, sisaAkhir, bankAccount, dpOrders, pelunasanOrders, totalDpOrders, totalPelunasanOrders]);
+  }, [customer, selectedOrders, kind, dpAmount, dpPercent, total, totalDp, shippingCost, packingFee, estimasiBerat, deadlinePayment, sisaAkhir, bankAccount, dpOrders, pelunasanOrders, totalDpOrders, totalPelunasanOrders, creditUsed, amountAfterCredit]);
 
   async function recordPayment() {
     if (!customer || selectedOrders.length === 0) return;
@@ -232,8 +252,21 @@ export default function InvoicesPage() {
       await supabase.from("orders").update({ status: "paid_off" }).in("id", idsToPaidOff);
     }
 
+    // Update saldo deposit customer: kurangi saldo yang dipakai, tambah kelebihan transfer baru (jika ada)
+    const received = Number(receivedAmount || amountAfterCredit);
+    const excess = Math.max(0, received - amountAfterCredit);
+    const newCreditBalance = creditAvailable - creditUsed + excess;
+    if (newCreditBalance !== creditAvailable) {
+      await supabase.from("customers").update({ credit_balance: newCreditBalance }).eq("id", customer.id);
+    }
+
+    setReceivedAmount("");
     load();
-    alert("Pembayaran berhasil dicatat & status buku diperbarui! ✅");
+    if (excess > 0) {
+      alert(`Pembayaran berhasil dicatat & status buku diperbarui! ✅\n\nKelebihan transfer ${formatIDR(excess)} disimpan sebagai Saldo Deposit untuk invoice berikutnya.`);
+    } else {
+      alert("Pembayaran berhasil dicatat & status buku diperbarui! ✅");
+    }
   }
 
   function copyInvoice() {
@@ -405,8 +438,34 @@ export default function InvoicesPage() {
                   <span className="text-amber-800 font-bold text-base">{formatIDR(dpAmount)}</span>
                 </div>
               )}
+              {creditAvailable > 0 && (
+                <div className="flex justify-between py-1.5 border-b border-gray-50">
+                  <span className="text-gray-500">Saldo Deposit Customer</span>
+                  <span className="font-semibold text-purple-600">{formatIDR(creditAvailable)}</span>
+                </div>
+              )}
+              {creditUsed > 0 && (
+                <div className="flex justify-between py-2 bg-purple-50 rounded-lg px-3 mt-2">
+                  <span className="text-purple-700 font-semibold">Tagihan Setelah Dikurangi Saldo Deposit</span>
+                  <span className="text-purple-800 font-bold text-base">{formatIDR(amountAfterCredit)}</span>
+                </div>
+              )}
             </div>
-            <div className="mt-5 flex gap-2 flex-wrap">
+
+            <label className="text-sm flex flex-col gap-1 mt-3">
+              <span className="text-gray-600 font-medium text-xs">Nominal Diterima (isi jika berbeda dari tagihan, mis. customer transfer lebih)</span>
+              <input type="number"
+                className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                value={receivedAmount} onChange={(e) => setReceivedAmount(e.target.value)}
+                placeholder={String(amountAfterCredit)} />
+              {Number(receivedAmount || 0) > amountAfterCredit && (
+                <span className="text-xs text-purple-600">
+                  💜 Kelebihan {formatIDR(Number(receivedAmount) - amountAfterCredit)} akan otomatis disimpan sebagai Saldo Deposit.
+                </span>
+              )}
+            </label>
+
+            <div className="mt-3 flex gap-2 flex-wrap">
               <button onClick={copyInvoice}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md"
                 style={{ background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)" }}>
@@ -433,3 +492,4 @@ export default function InvoicesPage() {
     </div>
   );
 }
+```
