@@ -9,14 +9,35 @@ const EMPTY = {
   publisher: "",
   isbn: "",
   title: "",
-  format: "PB" as "PB" | "HC",
+  format: "PB" as Book["format"],
   price_gbp: "",
+  price_currency: "GBP" as "GBP" | "USD" | "AUD",
   price_idr: "",
   eta: "",
   status: "available" as "available" | "oos",
 };
 
-const CSV_HEADERS = ["Publisher", "ISBN", "Judul", "Format", "Harga GBP", "Harga Rupiah", "ETA", "Status"];
+const FORMAT_LABELS: Record<Book["format"], string> = {
+  PB: "Paperback (PB)",
+  HC: "Hardcover (HC)",
+  BB: "Boardbook (BB)",
+  FB: "Flexibound (FB)",
+  TOYS: "Educational Toys",
+  MONTESSORI: "Montessori Apparatus",
+};
+
+const FORMAT_BADGE: Record<Book["format"], string> = {
+  PB: "bg-blue-100 text-blue-700",
+  HC: "bg-amber-100 text-amber-700",
+  BB: "bg-teal-100 text-teal-700",
+  FB: "bg-indigo-100 text-indigo-700",
+  TOYS: "bg-pink-100 text-pink-700",
+  MONTESSORI: "bg-green-100 text-green-700",
+};
+
+const CURRENCY_SYMBOL: Record<string, string> = { GBP: "£", USD: "$", AUD: "A$" };
+
+const CSV_HEADERS = ["Publisher", "ISBN", "Judul", "Format", "Harga Asing", "Mata Uang", "Harga Rupiah", "ETA (Bulan/Tahun)", "Status"];
 
 export default function BooksPage() {
   const supabase = supabaseBrowser();
@@ -48,6 +69,7 @@ export default function BooksPage() {
       title: form.title,
       format: form.format,
       price_gbp: form.price_gbp ? Number(form.price_gbp) : null,
+      price_currency: form.price_currency,
       price_idr: Number(form.price_idr),
       eta: form.eta || null,
       status: form.status,
@@ -72,6 +94,7 @@ export default function BooksPage() {
       title: b.title,
       format: b.format,
       price_gbp: b.price_gbp?.toString() ?? "",
+      price_currency: (b.price_currency ?? "GBP") as "GBP" | "USD" | "AUD",
       price_idr: b.price_idr?.toString() ?? "",
       eta: b.eta ?? "",
       status: b.status,
@@ -91,7 +114,7 @@ export default function BooksPage() {
   }
 
   function toRows(list: Book[]) {
-    return list.map((b) => [b.publisher, b.isbn ?? "", b.title, b.format, b.price_gbp ?? "", b.price_idr, b.eta ?? "", b.status]);
+    return list.map((b) => [b.publisher, b.isbn ?? "", b.title, b.format, b.price_gbp ?? "", b.price_currency ?? "GBP", b.price_idr, b.eta ?? "", b.status]);
   }
 
   function handleExportCSV() { exportToCSV("buku-hlm.csv", CSV_HEADERS, toRows(books)); }
@@ -110,17 +133,20 @@ export default function BooksPage() {
       const all = await parseExcelFile(file);
       rows = (all as unknown as (string | number)[][]).slice(1).map((r) => r.map(String));
     }
+    const VALID_FORMATS = ["PB", "HC", "BB", "FB", "TOYS", "MONTESSORI"];
+    const VALID_CURRENCIES = ["GBP", "USD", "AUD"];
     const payload = rows
       .filter((r) => r[2])
       .map((r) => ({
         publisher: r[0] || "Unknown",
         isbn: r[1] || null,
         title: r[2],
-        format: (r[3] === "HC" ? "HC" : "PB") as "PB" | "HC",
+        format: (VALID_FORMATS.includes(r[3]) ? r[3] : "PB") as Book["format"],
         price_gbp: r[4] ? Number(r[4]) : null,
-        price_idr: Number(r[5]) || 0,
-        eta: r[6] || null,
-        status: (r[7] === "oos" ? "oos" : "available") as "available" | "oos",
+        price_currency: (VALID_CURRENCIES.includes(r[5]) ? r[5] : "GBP") as "GBP" | "USD" | "AUD",
+        price_idr: Number(r[6]) || 0,
+        eta: r[7] || null,
+        status: (r[8] === "oos" ? "oos" : "available") as "available" | "oos",
       }));
     if (payload.length === 0) return setError("File tidak berisi data yang valid.");
     const { error } = await supabase.from("books").insert(payload);
@@ -152,7 +178,7 @@ export default function BooksPage() {
         <button
           type="button"
           className="text-xs text-blue-600 hover:underline"
-          onClick={() => exportToCSV("template-buku.csv", CSV_HEADERS, [["Quarto", "9781234567890", "Contoh Judul Buku", "PB", "7.99", "145000", "2024-09-01", "available"]])}
+          onClick={() => exportToCSV("template-buku.csv", CSV_HEADERS, [["Quarto", "9781234567890", "Contoh Judul Buku", "PB", "7.99", "GBP", "145000", "2024-09", "available"]])}
         >
           📄 Download template CSV
         </button>
@@ -174,14 +200,26 @@ export default function BooksPage() {
           <Field label="Judul Buku" value={form.title} onChange={(v) => setForm({ ...form, title: v })} required className="lg:col-span-2" />
           <label className="text-sm flex flex-col gap-1">
             <span className="text-gray-600 font-medium text-xs">Format</span>
-            <select className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" value={form.format} onChange={(e) => setForm({ ...form, format: e.target.value as "PB" | "HC" })}>
-              <option value="PB">Paperback (PB)</option>
-              <option value="HC">Hardcover (HC)</option>
+            <select className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" value={form.format} onChange={(e) => setForm({ ...form, format: e.target.value as Book["format"] })}>
+              {Object.entries(FORMAT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </label>
-          <Field label="Harga (GBP)" value={form.price_gbp} onChange={(v) => setForm({ ...form, price_gbp: v })} type="number" placeholder="7.99" />
+          <div className="text-sm flex flex-col gap-1">
+            <span className="text-gray-600 font-medium text-xs">Harga Asing</span>
+            <div className="flex gap-1.5">
+              <select className="border border-gray-200 rounded-lg px-2 py-2 bg-white text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 w-24"
+                value={form.price_currency} onChange={(e) => setForm({ ...form, price_currency: e.target.value as "GBP" | "USD" | "AUD" })}>
+                <option value="GBP">£ GBP</option>
+                <option value="USD">$ USD</option>
+                <option value="AUD">A$ AUD</option>
+              </select>
+              <input type="number" placeholder="7.99"
+                className="border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all text-sm flex-1"
+                value={form.price_gbp} onChange={(e) => setForm({ ...form, price_gbp: e.target.value })} />
+            </div>
+          </div>
           <Field label="Harga (Rupiah)" value={form.price_idr} onChange={(v) => setForm({ ...form, price_idr: v })} type="number" required placeholder="145000" />
-          <Field label="ETA" value={form.eta} onChange={(v) => setForm({ ...form, eta: v })} type="date" />
+          <Field label="ETA (Bulan/Tahun)" value={form.eta} onChange={(v) => setForm({ ...form, eta: v })} type="month" />
           <label className="text-sm flex flex-col gap-1">
             <span className="text-gray-600 font-medium text-xs">Status</span>
             <select className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as "available" | "oos" })}>
@@ -241,13 +279,13 @@ export default function BooksPage() {
                 </td>
                 <td className="px-5 py-3 font-medium text-gray-800 max-w-xs">{b.title}</td>
                 <td className="px-5 py-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${b.format === "HC" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FORMAT_BADGE[b.format] ?? "bg-gray-100 text-gray-700"}`}>
                     {b.format}
                   </span>
                 </td>
                 <td className="px-5 py-3 whitespace-nowrap text-gray-700 font-medium">
                   {formatIDR(b.price_idr)}
-                  {b.price_gbp ? <span className="text-gray-400 text-xs ml-1">(£{b.price_gbp})</span> : null}
+                  {b.price_gbp ? <span className="text-gray-400 text-xs ml-1">({CURRENCY_SYMBOL[b.price_currency ?? "GBP"]}{b.price_gbp})</span> : null}
                 </td>
                 <td className="px-5 py-3 text-gray-500">{b.eta}</td>
                 <td className="px-5 py-3">
