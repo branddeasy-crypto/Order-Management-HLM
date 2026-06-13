@@ -6,6 +6,7 @@ export type Customer = {
   receiver_name: string | null
   receiver_phone: string | null
   whatsapp_group: string | null
+  credit_balance: number
 }
 
 export type Book = {
