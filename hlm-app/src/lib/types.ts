@@ -13,8 +13,9 @@ export type Book = {
   publisher: string
   isbn: string | null
   title: string
-  format: 'PB' | 'HC'
+  format: 'PB' | 'HC' | 'BB' | 'FB' | 'TOYS' | 'MONTESSORI'
   price_gbp: number | null
+  price_currency: 'GBP' | 'USD' | 'AUD' | null
   price_idr: number
   eta: string | null
   status: 'available' | 'oos'
