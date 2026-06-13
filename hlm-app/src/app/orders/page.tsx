@@ -8,6 +8,7 @@ import { exportToCSV, exportToExcel } from "@/lib/importExport";
 const STATUS_LABEL: Record<OrderStatus, string> = {
   pending: "Pending",
   confirmed: "Dikonfirmasi",
+  hold: "Hold",
   dp_paid: "DP Terbayar",
   paid_off: "Lunas",
   queued: "Antri Kirim",
@@ -17,10 +18,21 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 const STATUS_COLOR: Record<OrderStatus, string> = {
   pending: "bg-gray-100 text-gray-600",
   confirmed: "bg-blue-100 text-blue-700",
+  hold: "bg-red-100 text-red-700",
   dp_paid: "bg-amber-100 text-amber-700",
   paid_off: "bg-emerald-100 text-emerald-700",
   queued: "bg-purple-100 text-purple-700",
   shipped: "bg-green-100 text-green-700",
+};
+
+const BOOK_STATUS_BADGE: Record<string, string> = {
+  available: "bg-green-100 text-green-700",
+  oos: "bg-red-100 text-red-700",
+};
+
+const BOOK_STATUS_LABEL: Record<string, string> = {
+  available: "✅ Tersedia",
+  oos: "❌ OOS",
 };
 
 export default function OrdersPage() {
@@ -32,8 +44,12 @@ export default function OrdersPage() {
   const [bookId, setBookId] = useState("");
   const [qty, setQty] = useState("1");
   const [groupFilter, setGroupFilter] = useState("");
+  const [publisherFilter, setPublisherFilter] = useState("");
+  const [etaFilter, setEtaFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [noteEdits, setNoteEdits] = useState<Record<string, string>>({});
+  const [noteSaved, setNoteSaved] = useState<Record<string, boolean>>({});
 
   async function load() {
     setLoading(true);
@@ -79,18 +95,34 @@ export default function OrdersPage() {
     load();
   }
 
+  async function saveNote(id: string) {
+    const value = noteEdits[id];
+    if (value === undefined) return;
+    await supabase.from("orders").update({ note: value }).eq("id", id);
+    setNoteSaved((s) => ({ ...s, [id]: true }));
+    setTimeout(() => setNoteSaved((s) => { const n = { ...s }; delete n[id]; return n; }), 2000);
+    load();
+  }
+
   const groups = Array.from(new Set(customers.map((c) => c.whatsapp_group).filter(Boolean))) as string[];
-  const filtered = groupFilter ? orders.filter((o) => o.customers?.whatsapp_group === groupFilter) : orders;
+  const publishers = Array.from(new Set(books.map((b) => b.publisher).filter(Boolean))) as string[];
+  const etas = Array.from(new Set(books.map((b) => b.eta).filter(Boolean))) as string[];
+
+  const filtered = orders.filter((o) =>
+    (!groupFilter || o.customers?.whatsapp_group === groupFilter) &&
+    (!publisherFilter || o.books?.publisher === publisherFilter) &&
+    (!etaFilter || o.books?.eta === etaFilter)
+  );
 
   const totalValue = filtered.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
 
-  const ORDER_HEADERS = ["Customer", "Grup", "Publisher", "Judul Buku", "Format", "Qty", "Harga Satuan", "Subtotal", "Status"];
+  const ORDER_HEADERS = ["Customer", "Grup", "Publisher", "ETA", "Judul Buku", "Format", "Status Buku", "Qty", "Harga Satuan", "Subtotal", "Status Order", "Note"];
   function ordersToRows(list: Order[]) {
     return list.map((o) => [
       o.customers?.whatsapp_name ?? "", o.customers?.whatsapp_group ?? "",
-      o.books?.publisher ?? "", o.books?.title ?? "", o.books?.format ?? "",
-      o.qty, o.books?.price_idr ?? 0, (o.books?.price_idr ?? 0) * o.qty,
-      STATUS_LABEL[o.status],
+      o.books?.publisher ?? "", o.books?.eta ?? "", o.books?.title ?? "", o.books?.format ?? "",
+      o.books?.status ?? "", o.qty, o.books?.price_idr ?? 0, (o.books?.price_idr ?? 0) * o.qty,
+      STATUS_LABEL[o.status], o.note ?? "",
     ]);
   }
 
@@ -170,12 +202,22 @@ export default function OrdersPage() {
 
       {/* Export + Filter */}
       <div className="flex flex-wrap gap-3 mb-4 items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 font-medium">Filter grup:</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-gray-500 font-medium">Filter:</span>
           <select className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-blue-400"
             value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)}>
             <option value="">Semua grup</option>
             {groups.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <select className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-blue-400"
+            value={publisherFilter} onChange={(e) => setPublisherFilter(e.target.value)}>
+            <option value="">Semua publisher</option>
+            {publishers.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-blue-400"
+            value={etaFilter} onChange={(e) => setEtaFilter(e.target.value)}>
+            <option value="">Semua ETA</option>
+            {etas.map((e) => <option key={e} value={e}>{e}</option>)}
           </select>
         </div>
         <div className="flex gap-2">
@@ -202,17 +244,19 @@ export default function OrdersPage() {
               <th className="px-5 py-3">Customer</th>
               <th className="px-5 py-3">Grup</th>
               <th className="px-5 py-3">Judul Buku</th>
+              <th className="px-5 py-3">Status Buku</th>
               <th className="px-5 py-3">Qty</th>
               <th className="px-5 py-3">Subtotal</th>
-              <th className="px-5 py-3">Status</th>
+              <th className="px-5 py-3">Status Order</th>
+              <th className="px-5 py-3">Note</th>
               <th className="px-5 py-3"></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="px-5 py-8 text-gray-300 text-center" colSpan={7}>⏳ Memuat data...</td></tr>
+              <tr><td className="px-5 py-8 text-gray-300 text-center" colSpan={9}>⏳ Memuat data...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td className="px-5 py-8 text-gray-400 text-center" colSpan={7}>📋 Belum ada order. Tambah order di atas!</td></tr>
+              <tr><td className="px-5 py-8 text-gray-400 text-center" colSpan={9}>📋 Belum ada order. Tambah order di atas!</td></tr>
             ) : filtered.map((o) => (
               <tr key={o.id} className="border-t border-gray-50 hover:bg-blue-50/30 transition-colors">
                 <td className="px-5 py-3 font-medium text-gray-800">{o.customers?.whatsapp_name}</td>
@@ -221,9 +265,13 @@ export default function OrdersPage() {
                     <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">{o.customers.whatsapp_group}</span>
                   )}
                 </td>
-                <td className="px-5 py-3 text-gray-700">
-                  {o.books?.title}
-                  {o.books?.status === "oos" && <span className="ml-2 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">OOS</span>}
+                <td className="px-5 py-3 text-gray-700">{o.books?.title}</td>
+                <td className="px-5 py-3">
+                  {o.books?.status && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${BOOK_STATUS_BADGE[o.books.status] ?? "bg-gray-100 text-gray-600"}`}>
+                      {BOOK_STATUS_LABEL[o.books.status] ?? o.books.status}
+                    </span>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-gray-600">{o.qty}</td>
                 <td className="px-5 py-3 whitespace-nowrap font-medium text-gray-800">
@@ -237,6 +285,20 @@ export default function OrdersPage() {
                   >
                     {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
+                </td>
+                <td className="px-5 py-3">
+                  <div className="flex items-center gap-1">
+                    <input
+                      className="border border-gray-200 rounded-lg px-2 py-1 text-xs w-32 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 bg-white"
+                      value={noteEdits[o.id] ?? o.note ?? ""}
+                      onChange={(e) => setNoteEdits((ne) => ({ ...ne, [o.id]: e.target.value }))}
+                      placeholder="catatan..."
+                    />
+                    <button onClick={() => saveNote(o.id)}
+                      className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors ${noteSaved[o.id] ? "bg-green-100 text-green-700" : "bg-blue-50 text-blue-600 hover:bg-blue-100"}`}>
+                      {noteSaved[o.id] ? "✅" : "💾"}
+                    </button>
+                  </div>
                 </td>
                 <td className="px-5 py-3 text-right">
                   <button onClick={() => remove(o.id)} className="text-xs px-3 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors">Hapus</button>
