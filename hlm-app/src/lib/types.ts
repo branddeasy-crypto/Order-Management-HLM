@@ -51,10 +51,9 @@ export type Shipment = {
   queue_no: number | null
   shipped_at: string | null
   weight_actual: number | null
+  shipping_cost_actual: number | null
+}
 
 export function formatIDR(n: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
-}
-
-  shipping_cost_actual: number | null
 }
