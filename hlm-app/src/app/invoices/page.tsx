@@ -1,4 +1,3 @@
-```tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -122,11 +121,13 @@ export default function InvoicesPage() {
 
   const invoiceText = useMemo(() => {
     if (!customer) return "";
-          (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} - ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
+    const lines = selectedOrders.map(
+      (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} - ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
+    );
 
     if (kind === "dp") {
       return [
-                `*INVOICE DP - ${customer.whatsapp_name}*`,
+        `*INVOICE DP - ${customer.whatsapp_name}*`,
         `Grup: ${customer.whatsapp_group ?? "-"}`,
         ``,
         ...lines,
@@ -148,8 +149,8 @@ export default function InvoicesPage() {
 
     if (kind === "pelunasan") {
       return [
-        `*INVOICE PELUNASAN — ${customer.whatsapp_name}*`,
-                `*INVOICE PELUNASAN - ${customer.whatsapp_name}*`,
+        `*INVOICE PELUNASAN - ${customer.whatsapp_name}*`,
+        `Grup: ${customer.whatsapp_group ?? "-"}`,
         ``,
         ...lines,
         ``,
@@ -490,4 +491,3 @@ export default function InvoicesPage() {
     </div>
   );
 }
-```
