@@ -194,9 +194,25 @@ export default function InvoicesPage() {
 
   async function recordPayment() {
     if (!customer || selectedOrders.length === 0) return;
-    const amount = kind === "pelunasan" ? sisaAkhir : dpAmount;
-    const payKind = kind === "pelunasan" ? "pelunasan" : "dp";
+
+    const mixDpAmount = dpPercent === "custom" ? dpAmount : Math.round(totalDpOrders * (Number(dpPercent) / 100));
+
+    // Tentukan nominal & jenis pembayaran yang dicatat sesuai jenis invoice
+    let amount = 0;
+    let payKind: "dp" | "pelunasan" = "dp";
+    if (kind === "pelunasan") {
+      amount = sisaAkhir;
+      payKind = "pelunasan";
+    } else if (kind === "dp") {
+      amount = dpAmount;
+      payKind = "dp";
+    } else {
+      // mix: catat sebagai pelunasan untuk buku yang sudah DP, sisanya komponen DP dianggap pembayaran DP baru
+      amount = totalPelunasanOrders + mixDpAmount + Number(shippingCost || 0) + Number(packingFee || 0);
+      payKind = pelunasanOrders.length > 0 ? "pelunasan" : "dp";
+    }
     if (amount <= 0) return;
+
     await supabase.from("payments").insert({
       order_id: selectedOrders[0].id,
       kind: payKind,
@@ -204,8 +220,22 @@ export default function InvoicesPage() {
       paid_at: new Date().toISOString().slice(0, 10),
       bank_account: bankAccount,
     });
+
+    // Update status buku otomatis sesuai jenis invoice
+    // - Buku berstatus Pending/Dikonfirmasi/Hold yang ditagih DP -> jadi "DP Terbayar"
+    // - Buku berstatus DP Terbayar yang ditagih Pelunasan -> jadi "Lunas"
+    const idsToDpPaid = (kind === "dp" || kind === "mix") ? dpOrders.map((o) => o.id) : [];
+    const idsToPaidOff = (kind === "pelunasan" || kind === "mix") ? pelunasanOrders.map((o) => o.id) : [];
+
+    if (idsToDpPaid.length > 0) {
+      await supabase.from("orders").update({ status: "dp_paid" }).in("id", idsToDpPaid);
+    }
+    if (idsToPaidOff.length > 0) {
+      await supabase.from("orders").update({ status: "paid_off" }).in("id", idsToPaidOff);
+    }
+
     load();
-    alert("Pembayaran berhasil dicatat! ✅");
+    alert("Pembayaran berhasil dicatat & status buku diperbarui! ✅");
   }
 
   function copyInvoice() {
