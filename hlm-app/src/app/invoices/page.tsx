@@ -5,8 +5,8 @@ import { supabaseBrowser } from "@/lib/supabase";
 import { Customer, Order, Payment, formatIDR } from "@/lib/types";
 
 const BANK_OPTIONS = [
-  "Seabank 901335299369 a.n. Deasy",
-  "BCA 5930374395 a.n. Deasy",
+  "Seabank 901335299369 a.n. Deasy Sherliya Trajadi",
+  "BCA 5930374395 a.n. Deasy Sherliya Trajadi",
 ];
 
 export default function InvoicesPage() {
