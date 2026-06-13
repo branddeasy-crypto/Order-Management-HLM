@@ -106,7 +106,12 @@ export default function OrdersPage() {
 
   const groups = Array.from(new Set(customers.map((c) => c.whatsapp_group).filter(Boolean))) as string[];
   const publishers = Array.from(new Set(books.map((b) => b.publisher).filter(Boolean))) as string[];
-  const etas = Array.from(new Set(books.map((b) => b.eta).filter(Boolean))) as string[];
+  const etas = Array.from(new Set(
+    books
+      .filter((b) => !publisherFilter || b.publisher === publisherFilter)
+      .map((b) => b.eta)
+      .filter(Boolean)
+  )) as string[];
 
   const filtered = orders.filter((o) =>
     (!groupFilter || o.customers?.whatsapp_group === groupFilter) &&
@@ -210,7 +215,7 @@ export default function OrdersPage() {
             {groups.map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
           <select className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-blue-400"
-            value={publisherFilter} onChange={(e) => setPublisherFilter(e.target.value)}>
+            value={publisherFilter} onChange={(e) => { setPublisherFilter(e.target.value); setEtaFilter(""); }}>
             <option value="">Semua publisher</option>
             {publishers.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
