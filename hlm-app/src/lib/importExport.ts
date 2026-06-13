@@ -16,6 +16,7 @@ export function exportToCSV(filename: string, headers: string[], rows: (string |
   URL.revokeObjectURL(url);
 }
 
+// Parse CSV sederhana (untuk import)
 export function parseCSV(text: string): string[][] {
   const lines = text.trim().split("\n");
   return lines.map((line) => {
@@ -39,8 +40,8 @@ export function parseCSV(text: string): string[][] {
   });
 }
 
+// Export ke Excel via xlsx (loaded dari CDN di browser)
 export async function exportToExcel(filename: string, sheetName: string, headers: string[], rows: (string | number | null | undefined)[][]) {
-  // @ts-ignore
   const XLSX = await import("xlsx");
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   const wb = XLSX.utils.book_new();
@@ -48,8 +49,8 @@ export async function exportToExcel(filename: string, sheetName: string, headers
   XLSX.writeFile(wb, filename);
 }
 
+// Parse file Excel di browser (drop/upload)
 export async function parseExcelFile(file: File): Promise<string[][]> {
-  // @ts-ignore
   const XLSX = await import("xlsx");
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: "array" });
