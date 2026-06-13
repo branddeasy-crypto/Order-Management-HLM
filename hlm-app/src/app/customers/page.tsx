@@ -11,6 +11,7 @@ const EMPTY: Omit<Customer, "id"> = {
   receiver_name: "",
   receiver_phone: "",
   whatsapp_group: "",
+  credit_balance: 0,
 };
 
 export default function CustomersPage() {
@@ -50,7 +51,7 @@ export default function CustomersPage() {
     load();
   }
 
-  function edit(c: Customer) {
+    function edit(c: Customer) {
     setEditingId(c.id);
     setForm({
       whatsapp_name: c.whatsapp_name,
@@ -59,6 +60,7 @@ export default function CustomersPage() {
       receiver_name: c.receiver_name ?? "",
       receiver_phone: c.receiver_phone ?? "",
       whatsapp_group: c.whatsapp_group ?? "",
+      credit_balance: c.credit_balance ?? 0,
     });
   }
 
