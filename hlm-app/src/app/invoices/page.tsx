@@ -65,8 +65,6 @@ export default function InvoicesPage() {
 
   const customer = customers.find((c) => c.id === customerId);
   const customerOrders = useMemo(() => orders.filter((o) => o.customer_id === customerId), [orders, customerId]);
-  const customerOrderIds = customerOrders.map((o) => o.id);
-  const customerPayments = payments.filter((p) => customerOrderIds.includes(p.order_id));
 
   // Saat customer berganti, default pilih semua bukunya
   useEffect(() => {
@@ -190,7 +188,7 @@ export default function InvoicesPage() {
       ``,
       `Mohon selesaikan pembayaran ke rek Seabank 901335299369 atau BCA 5930374395 an Deasy Sherliya Trajadi${deadlinePayment ? ` paling lambat ${deadlinePayment}` : ""} 🙏`,
     ].join("\n");
-  }, [customer, selectedOrders, kind, dpAmount, dpPercent, total, totalDp, totalPelunasan, shippingCost, packingFee, estimasiBerat, deadlinePayment, sisaAkhir, bankAccount, dpOrders, pelunasanOrders, totalDpOrders, totalPelunasanOrders]);
+  }, [customer, selectedOrders, kind, dpAmount, dpPercent, total, totalDp, shippingCost, packingFee, estimasiBerat, deadlinePayment, sisaAkhir, bankAccount, dpOrders, pelunasanOrders, totalDpOrders, totalPelunasanOrders]);
 
   async function recordPayment() {
     if (!customer || selectedOrders.length === 0) return;
