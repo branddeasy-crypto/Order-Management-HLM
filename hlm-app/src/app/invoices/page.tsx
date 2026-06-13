@@ -9,14 +9,38 @@ const BANK_OPTIONS = [
   "BCA 5930374395 a.n. Deasy Sherliya Trajadi",
 ];
 
+const STATUS_BADGE: Record<string, string> = {
+  pending: "bg-gray-100 text-gray-600",
+  confirmed: "bg-blue-100 text-blue-700",
+  hold: "bg-red-100 text-red-700",
+  dp_paid: "bg-amber-100 text-amber-700",
+  paid_off: "bg-emerald-100 text-emerald-700",
+  queued: "bg-purple-100 text-purple-700",
+  shipped: "bg-green-100 text-green-700",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: "Pending",
+  confirmed: "Dikonfirmasi",
+  hold: "Hold",
+  dp_paid: "DP Terbayar",
+  paid_off: "Lunas",
+  queued: "Antri Kirim",
+  shipped: "Terkirim",
+};
+
 export default function InvoicesPage() {
   const supabase = supabaseBrowser();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [customerId, setCustomerId] = useState("");
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
   const [bankAccount, setBankAccount] = useState(BANK_OPTIONS[0]);
   const [shippingCost, setShippingCost] = useState("");
+  const [estimasiBerat, setEstimasiBerat] = useState("");
+  const [packingFee, setPackingFee] = useState("");
+  const [deadlinePayment, setDeadlinePayment] = useState("");
   const [kind, setKind] = useState<"dp" | "pelunasan" | "mix">("dp");
   const [dpPercent, setDpPercent] = useState("50");
   const [customDpAmount, setCustomDpAmount] = useState("");
@@ -44,34 +68,54 @@ export default function InvoicesPage() {
   const customerOrderIds = customerOrders.map((o) => o.id);
   const customerPayments = payments.filter((p) => customerOrderIds.includes(p.order_id));
 
-  const total = customerOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
-  const totalDp = customerPayments.filter((p) => p.kind === "dp").reduce((s, p) => s + p.amount, 0);
-  const totalPelunasan = customerPayments.filter((p) => p.kind === "pelunasan").reduce((s, p) => s + p.amount, 0);
+  // Saat customer berganti, default pilih semua bukunya
+  useEffect(() => {
+    setSelectedOrderIds(new Set(customerOrders.map((o) => o.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId]);
+
+  function toggleOrder(id: string) {
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Hanya buku yang dicentang yang masuk ke perhitungan & invoice
+  const selectedOrders = customerOrders.filter((o) => selectedOrderIds.has(o.id));
+  const selectedOrderIdsArr = selectedOrders.map((o) => o.id);
+  const selectedPayments = payments.filter((p) => selectedOrderIdsArr.includes(p.order_id));
+
+  const total = selectedOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
+  const totalDp = selectedPayments.filter((p) => p.kind === "dp").reduce((s, p) => s + p.amount, 0);
+  const totalPelunasan = selectedPayments.filter((p) => p.kind === "pelunasan").reduce((s, p) => s + p.amount, 0);
   const sisaSetelahDp = total - totalDp;
-  const sisaAkhir = total + Number(shippingCost || 0) - totalDp - totalPelunasan;
+  const sisaAkhir = total + Number(shippingCost || 0) + Number(packingFee || 0) - totalDp - totalPelunasan;
 
   const dpAmount = dpPercent === "custom" ? Number(customDpAmount || 0) : Math.round(total * (Number(dpPercent) / 100));
 
-  // Auto-detect jenis invoice berdasarkan status order: jika sudah ada yang DP terbayar -> Pelunasan, kalau belum -> DP
+  // Klasifikasi otomatis per-buku berdasarkan status order: pending/confirmed/hold -> perlu DP, dp_paid -> perlu Pelunasan
+  const dpOrders = selectedOrders.filter((o) => o.status === "pending" || o.status === "confirmed" || o.status === "hold");
+  const pelunasanOrders = selectedOrders.filter((o) => o.status === "dp_paid");
+  const totalDpOrders = dpOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
+  const totalPelunasanOrders = pelunasanOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
+
+  // Auto-detect jenis invoice (hanya untuk judul) berdasarkan buku yang dipilih
   useEffect(() => {
-    if (customerOrders.length === 0) return;
-    const hasDpPaid = customerOrders.some((o) => o.status === "dp_paid");
-    const hasPending = customerOrders.some((o) => o.status === "pending" || o.status === "confirmed" || o.status === "hold");
+    if (selectedOrders.length === 0) return;
+    const hasDpPaid = selectedOrders.some((o) => o.status === "dp_paid");
+    const hasPending = selectedOrders.some((o) => o.status === "pending" || o.status === "confirmed" || o.status === "hold");
     if (hasDpPaid && hasPending) setKind("mix");
     else if (hasDpPaid) setKind("pelunasan");
     else setKind("dp");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId]);
-
-  // Orders untuk masing-masing bagian invoice mix
-  const dpOrders = customerOrders.filter((o) => o.status === "pending" || o.status === "confirmed" || o.status === "hold");
-  const pelunasanOrders = customerOrders.filter((o) => o.status === "dp_paid");
-  const totalDpOrders = dpOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
-  const totalPelunasanOrders = pelunasanOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
+  }, [selectedOrderIds, customerId]);
 
   const invoiceText = useMemo(() => {
     if (!customer) return "";
-    const lines = customerOrders.map(
+    const lines = selectedOrders.map(
       (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} — ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
     );
 
@@ -85,6 +129,8 @@ export default function InvoicesPage() {
         `Total Tagihan: ${formatIDR(total)}`,
         `DP yang harus dibayar: ${formatIDR(dpAmount)}`,
         `Sisa setelah DP: ${formatIDR(total - dpAmount)}`,
+        ...(estimasiBerat ? [`Estimasi Berat: ${estimasiBerat}`] : []),
+        ...(deadlinePayment ? [`Deadline Pembayaran: ${deadlinePayment}`] : []),
         ``,
         `Pembayaran ke: ${bankAccount}`,
         `Mohon kirim bukti transfer setelah melakukan pembayaran. Terima kasih 🙏`,
@@ -101,7 +147,10 @@ export default function InvoicesPage() {
         `Total Tagihan Buku: ${formatIDR(total)}`,
         `Sudah DP: ${formatIDR(totalDp)}`,
         `Ongkos Kirim: ${formatIDR(Number(shippingCost || 0))}`,
+        ...(packingFee ? [`Packing Fee: ${formatIDR(Number(packingFee || 0))}`] : []),
+        ...(estimasiBerat ? [`Estimasi Berat: ${estimasiBerat}`] : []),
         `*Sisa yang harus dilunasi: ${formatIDR(sisaAkhir)}*`,
+        ...(deadlinePayment ? [`Deadline Pembayaran: ${deadlinePayment}`] : []),
         ``,
         `Pembayaran ke: ${bankAccount}`,
         `Mohon kirim bukti transfer setelah melakukan pelunasan. Terima kasih 🙏`,
@@ -115,8 +164,8 @@ export default function InvoicesPage() {
     const pelunasanLines = pelunasanOrders.map(
       (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} — ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
     );
-    const mixDpAmount = Math.round(totalDpOrders * (Number(dpPercent === "custom" ? 0 : dpPercent) / 100)) || dpAmount;
-    const pelunasanSisa = totalPelunasanOrders + Number(shippingCost || 0) - totalPelunasan;
+    const mixDpAmount = dpPercent === "custom" ? dpAmount : Math.round(totalDpOrders * (Number(dpPercent) / 100));
+    const pelunasanSisa = totalPelunasanOrders + Number(shippingCost || 0) + Number(packingFee || 0) - totalPelunasan;
 
     return [
       `*INVOICE — ${customer.whatsapp_name}*`,
@@ -126,7 +175,7 @@ export default function InvoicesPage() {
         `📦 *Order Baru (perlu DP)*`,
         ...dpLines,
         `Total: ${formatIDR(totalDpOrders)}`,
-        `DP yang harus dibayar: ${formatIDR(dpPercent === "custom" ? dpAmount : mixDpAmount)}`,
+        `DP yang harus dibayar: ${formatIDR(mixDpAmount)}`,
         ``,
       ] : []),
       ...(pelunasanOrders.length > 0 ? [
@@ -135,21 +184,25 @@ export default function InvoicesPage() {
         `Total Tagihan: ${formatIDR(totalPelunasanOrders)}`,
         `Sudah DP: ${formatIDR(totalPelunasan)}`,
         `Ongkos Kirim: ${formatIDR(Number(shippingCost || 0))}`,
+        ...(packingFee ? [`Packing Fee: ${formatIDR(Number(packingFee || 0))}`] : []),
         `*Sisa yang harus dilunasi: ${formatIDR(pelunasanSisa)}*`,
         ``,
       ] : []),
+      ...(estimasiBerat ? [`Estimasi Berat: ${estimasiBerat}`] : []),
+      ...(deadlinePayment ? [`Deadline Pembayaran: ${deadlinePayment}`] : []),
+      ``,
       `Pembayaran ke: ${bankAccount}`,
       `Mohon kirim bukti transfer setelah melakukan pembayaran. Terima kasih 🙏`,
     ].join("\n");
-  }, [customer, customerOrders, kind, dpAmount, dpPercent, total, totalDp, totalPelunasan, shippingCost, sisaAkhir, bankAccount, dpOrders, pelunasanOrders, totalDpOrders, totalPelunasanOrders]);
+  }, [customer, selectedOrders, kind, dpAmount, dpPercent, total, totalDp, totalPelunasan, shippingCost, packingFee, estimasiBerat, deadlinePayment, sisaAkhir, bankAccount, dpOrders, pelunasanOrders, totalDpOrders, totalPelunasanOrders]);
 
   async function recordPayment() {
-    if (!customer || customerOrders.length === 0) return;
+    if (!customer || selectedOrders.length === 0) return;
     const amount = kind === "pelunasan" ? sisaAkhir : dpAmount;
     const payKind = kind === "pelunasan" ? "pelunasan" : "dp";
     if (amount <= 0) return;
     await supabase.from("payments").insert({
-      order_id: customerOrders[0].id,
+      order_id: selectedOrders[0].id,
       kind: payKind,
       amount,
       paid_at: new Date().toISOString().slice(0, 10),
@@ -236,6 +289,26 @@ export default function InvoicesPage() {
                 value={shippingCost} onChange={(e) => setShippingCost(e.target.value)} placeholder="0" />
             </label>
           )}
+          {(kind === "pelunasan" || kind === "mix") && (
+            <label className="text-sm flex flex-col gap-1">
+              <span className="text-gray-600 font-medium text-xs">Packing Fee</span>
+              <input type="number"
+                className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                value={packingFee} onChange={(e) => setPackingFee(e.target.value)} placeholder="0" />
+            </label>
+          )}
+          <label className="text-sm flex flex-col gap-1">
+            <span className="text-gray-600 font-medium text-xs">Estimasi Berat</span>
+            <input
+              className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+              value={estimasiBerat} onChange={(e) => setEstimasiBerat(e.target.value)} placeholder="contoh: 1.5 kg" />
+          </label>
+          <label className="text-sm flex flex-col gap-1">
+            <span className="text-gray-600 font-medium text-xs">Deadline Payment</span>
+            <input type="date"
+              className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+              value={deadlinePayment} onChange={(e) => setDeadlinePayment(e.target.value)} />
+          </label>
         </div>
       </div>
 
@@ -248,6 +321,37 @@ export default function InvoicesPage() {
 
       {customer && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Pilih Buku */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm lg:col-span-2">
+            <h2 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
+              <span className="text-lg">📚</span> Pilih Buku yang Ditagih
+            </h2>
+            {customerOrders.length === 0 ? (
+              <p className="text-sm text-gray-400">Belum ada order untuk customer ini.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {customerOrders.map((o) => (
+                  <label key={o.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer border border-gray-50">
+                    <input type="checkbox"
+                      className="w-4 h-4 accent-amber-500"
+                      checked={selectedOrderIds.has(o.id)}
+                      onChange={() => toggleOrder(o.id)} />
+                    <span className="flex-1 text-sm text-gray-700">
+                      {o.books?.title} <span className="text-gray-400">({o.books?.format}) x{o.qty}</span>
+                    </span>
+                    <span className="text-xs text-gray-500">{formatIDR((o.books?.price_idr ?? 0) * o.qty)}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[o.status] ?? "bg-gray-100 text-gray-600"}`}>
+                      {STATUS_LABEL[o.status] ?? o.status}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-gray-400 mt-3">
+              💡 Buku dengan status &quot;Pending/Dikonfirmasi/Hold&quot; otomatis masuk sebagai tagihan <strong>DP</strong>, dan buku dengan status &quot;DP Terbayar&quot; otomatis masuk sebagai tagihan <strong>Pelunasan</strong>.
+            </p>
+          </div>
+
           {/* Summary */}
           <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
             <h2 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
@@ -255,7 +359,7 @@ export default function InvoicesPage() {
             </h2>
             <div className="space-y-2 text-sm">
               {[
-                { label: "Total Tagihan Buku", value: formatIDR(total), bold: true, color: "text-gray-800" },
+                { label: "Total Tagihan Buku (terpilih)", value: formatIDR(total), bold: true, color: "text-gray-800" },
                 { label: "Total DP Tercatat", value: formatIDR(totalDp), color: "text-gray-600" },
                 { label: "Total Pelunasan Tercatat", value: formatIDR(totalPelunasan), color: "text-gray-600" },
                 { label: "Sisa setelah DP", value: formatIDR(sisaSetelahDp), color: "text-amber-700" },
