@@ -195,7 +195,7 @@ export default function InvoicesPage() {
               value={kind} onChange={(e) => setKind(e.target.value as "dp" | "pelunasan" | "mix")}>
               <option value="dp">Invoice DP</option>
               <option value="pelunasan">Invoice Pelunasan</option>
-              <option value="mix">Invoice (mix DP & Pelunasan)</option>
+              <option value="mix">Invoice</option>
             </select>
           </label>
           <label className="text-sm flex flex-col gap-1">
