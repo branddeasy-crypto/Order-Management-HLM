@@ -157,42 +157,38 @@ export default function InvoicesPage() {
       ].join("\n");
     }
 
-    // mix: kombinasi DP (untuk order baru) & Pelunasan (untuk order yang sudah DP)
+    // mix: kombinasi Pelunasan (untuk order yang sudah DP) & DownPayment (untuk order baru)
     const dpLines = dpOrders.map(
-      (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} — ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
+      (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} - ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
     );
     const pelunasanLines = pelunasanOrders.map(
-      (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} — ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
+      (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} - ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
     );
     const mixDpAmount = dpPercent === "custom" ? dpAmount : Math.round(totalDpOrders * (Number(dpPercent) / 100));
-    const pelunasanSisa = totalPelunasanOrders + Number(shippingCost || 0) + Number(packingFee || 0) - totalPelunasan;
+    const totalPembayaran = totalPelunasanOrders + mixDpAmount + Number(shippingCost || 0) + Number(packingFee || 0);
 
     return [
-      `*INVOICE — ${customer.whatsapp_name}*`,
-      `Grup: ${customer.whatsapp_group ?? "-"}`,
+      `*Invoice  - ${customer.whatsapp_name}*`,
+      `Grup ${customer.whatsapp_group ?? "-"}`,
       ``,
-      ...(dpOrders.length > 0 ? [
-        `📦 *Order Baru (perlu DP)*`,
-        ...dpLines,
-        `Total: ${formatIDR(totalDpOrders)}`,
-        `DP yang harus dibayar: ${formatIDR(mixDpAmount)}`,
-        ``,
-      ] : []),
       ...(pelunasanOrders.length > 0 ? [
-        `✅ *Order Sudah DP (perlu Pelunasan)*`,
+        `*Pelunasan*`,
         ...pelunasanLines,
-        `Total Tagihan: ${formatIDR(totalPelunasanOrders)}`,
-        `Sudah DP: ${formatIDR(totalPelunasan)}`,
-        `Ongkos Kirim: ${formatIDR(Number(shippingCost || 0))}`,
-        ...(packingFee ? [`Packing Fee: ${formatIDR(Number(packingFee || 0))}`] : []),
-        `*Sisa yang harus dilunasi: ${formatIDR(pelunasanSisa)}*`,
         ``,
       ] : []),
-      ...(estimasiBerat ? [`Estimasi Berat: ${estimasiBerat}`] : []),
-      ...(deadlinePayment ? [`Deadline Pembayaran: ${deadlinePayment}`] : []),
+      ...(dpOrders.length > 0 ? [
+        `*DownPayment*`,
+        ...dpLines,
+        `Total PO ${formatIDR(totalDpOrders)}`,
+        `DP yang harus dibayar (${dpPercent === "custom" ? "Custom" : `${dpPercent}%`}) ${formatIDR(mixDpAmount)}`,
+        ``,
+      ] : []),
+      `Ongkos Kirim ${formatIDR(Number(shippingCost || 0))}`,
+      ...(packingFee ? [`Packing fee ${formatIDR(Number(packingFee || 0))}`] : []),
+      `*Total Pembayaran ${formatIDR(totalPembayaran)}*`,
+      ...(estimasiBerat ? [``, `Estimasi Berat: ${estimasiBerat}`] : []),
       ``,
-      `Pembayaran ke: ${bankAccount}`,
-      `Mohon kirim bukti transfer setelah melakukan pembayaran. Terima kasih 🙏`,
+      `Mohon selesaikan pembayaran ke rek Seabank 901335299369 atau BCA 5930374395 an Deasy Sherliya Trajadi${deadlinePayment ? ` paling lambat ${deadlinePayment}` : ""} 🙏`,
     ].join("\n");
   }, [customer, selectedOrders, kind, dpAmount, dpPercent, total, totalDp, totalPelunasan, shippingCost, packingFee, estimasiBerat, deadlinePayment, sisaAkhir, bankAccount, dpOrders, pelunasanOrders, totalDpOrders, totalPelunasanOrders]);
 
