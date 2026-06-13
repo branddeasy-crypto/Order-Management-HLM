@@ -4,16 +4,22 @@ import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { Customer, Order, Payment, formatIDR } from "@/lib/types";
 
+const BANK_OPTIONS = [
+  "Seabank 901335299369 a.n. Deasy",
+  "BCA 5930374395 a.n. Deasy",
+];
+
 export default function InvoicesPage() {
   const supabase = supabaseBrowser();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [customerId, setCustomerId] = useState("");
-  const [bankAccount, setBankAccount] = useState("BCA 123-456-7890 a.n. Vita");
+  const [bankAccount, setBankAccount] = useState(BANK_OPTIONS[0]);
   const [shippingCost, setShippingCost] = useState("");
-  const [kind, setKind] = useState<"dp" | "pelunasan">("dp");
-  const [dpAmount, setDpAmount] = useState("");
+  const [kind, setKind] = useState<"dp" | "pelunasan" | "mix">("dp");
+  const [dpPercent, setDpPercent] = useState("50");
+  const [customDpAmount, setCustomDpAmount] = useState("");
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -44,11 +50,31 @@ export default function InvoicesPage() {
   const sisaSetelahDp = total - totalDp;
   const sisaAkhir = total + Number(shippingCost || 0) - totalDp - totalPelunasan;
 
+  const dpAmount = dpPercent === "custom" ? Number(customDpAmount || 0) : Math.round(total * (Number(dpPercent) / 100));
+
+  // Auto-detect jenis invoice berdasarkan status order: jika sudah ada yang DP terbayar -> Pelunasan, kalau belum -> DP
+  useEffect(() => {
+    if (customerOrders.length === 0) return;
+    const hasDpPaid = customerOrders.some((o) => o.status === "dp_paid");
+    const hasPending = customerOrders.some((o) => o.status === "pending" || o.status === "confirmed" || o.status === "hold");
+    if (hasDpPaid && hasPending) setKind("mix");
+    else if (hasDpPaid) setKind("pelunasan");
+    else setKind("dp");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId]);
+
+  // Orders untuk masing-masing bagian invoice mix
+  const dpOrders = customerOrders.filter((o) => o.status === "pending" || o.status === "confirmed" || o.status === "hold");
+  const pelunasanOrders = customerOrders.filter((o) => o.status === "dp_paid");
+  const totalDpOrders = dpOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
+  const totalPelunasanOrders = pelunasanOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
+
   const invoiceText = useMemo(() => {
     if (!customer) return "";
     const lines = customerOrders.map(
       (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} — ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
     );
+
     if (kind === "dp") {
       return [
         `*INVOICE DP — ${customer.whatsapp_name}*`,
@@ -57,36 +83,74 @@ export default function InvoicesPage() {
         ...lines,
         ``,
         `Total Tagihan: ${formatIDR(total)}`,
-        `DP yang harus dibayar: ${formatIDR(Number(dpAmount || 0))}`,
-        `Sisa setelah DP: ${formatIDR(total - Number(dpAmount || 0))}`,
+        `DP yang harus dibayar: ${formatIDR(dpAmount)}`,
+        `Sisa setelah DP: ${formatIDR(total - dpAmount)}`,
         ``,
         `Pembayaran ke: ${bankAccount}`,
         `Mohon kirim bukti transfer setelah melakukan pembayaran. Terima kasih 🙏`,
       ].join("\n");
     }
+
+    if (kind === "pelunasan") {
+      return [
+        `*INVOICE PELUNASAN — ${customer.whatsapp_name}*`,
+        `Grup: ${customer.whatsapp_group ?? "-"}`,
+        ``,
+        ...lines,
+        ``,
+        `Total Tagihan Buku: ${formatIDR(total)}`,
+        `Sudah DP: ${formatIDR(totalDp)}`,
+        `Ongkos Kirim: ${formatIDR(Number(shippingCost || 0))}`,
+        `*Sisa yang harus dilunasi: ${formatIDR(sisaAkhir)}*`,
+        ``,
+        `Pembayaran ke: ${bankAccount}`,
+        `Mohon kirim bukti transfer setelah melakukan pelunasan. Terima kasih 🙏`,
+      ].join("\n");
+    }
+
+    // mix: kombinasi DP (untuk order baru) & Pelunasan (untuk order yang sudah DP)
+    const dpLines = dpOrders.map(
+      (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} — ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
+    );
+    const pelunasanLines = pelunasanOrders.map(
+      (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} — ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
+    );
+    const mixDpAmount = Math.round(totalDpOrders * (Number(dpPercent === "custom" ? 0 : dpPercent) / 100)) || dpAmount;
+    const pelunasanSisa = totalPelunasanOrders + Number(shippingCost || 0) - totalPelunasan;
+
     return [
-      `*INVOICE PELUNASAN — ${customer.whatsapp_name}*`,
+      `*INVOICE — ${customer.whatsapp_name}*`,
       `Grup: ${customer.whatsapp_group ?? "-"}`,
       ``,
-      ...lines,
-      ``,
-      `Total Tagihan Buku: ${formatIDR(total)}`,
-      `Sudah DP: ${formatIDR(totalDp)}`,
-      `Ongkos Kirim: ${formatIDR(Number(shippingCost || 0))}`,
-      `*Sisa yang harus dilunasi: ${formatIDR(sisaAkhir)}*`,
-      ``,
+      ...(dpOrders.length > 0 ? [
+        `📦 *Order Baru (perlu DP)*`,
+        ...dpLines,
+        `Total: ${formatIDR(totalDpOrders)}`,
+        `DP yang harus dibayar: ${formatIDR(dpPercent === "custom" ? dpAmount : mixDpAmount)}`,
+        ``,
+      ] : []),
+      ...(pelunasanOrders.length > 0 ? [
+        `✅ *Order Sudah DP (perlu Pelunasan)*`,
+        ...pelunasanLines,
+        `Total Tagihan: ${formatIDR(totalPelunasanOrders)}`,
+        `Sudah DP: ${formatIDR(totalPelunasan)}`,
+        `Ongkos Kirim: ${formatIDR(Number(shippingCost || 0))}`,
+        `*Sisa yang harus dilunasi: ${formatIDR(pelunasanSisa)}*`,
+        ``,
+      ] : []),
       `Pembayaran ke: ${bankAccount}`,
-      `Mohon kirim bukti transfer setelah melakukan pelunasan. Terima kasih 🙏`,
+      `Mohon kirim bukti transfer setelah melakukan pembayaran. Terima kasih 🙏`,
     ].join("\n");
-  }, [customer, customerOrders, kind, dpAmount, total, totalDp, shippingCost, sisaAkhir, bankAccount]);
+  }, [customer, customerOrders, kind, dpAmount, dpPercent, total, totalDp, totalPelunasan, shippingCost, sisaAkhir, bankAccount, dpOrders, pelunasanOrders, totalDpOrders, totalPelunasanOrders]);
 
   async function recordPayment() {
     if (!customer || customerOrders.length === 0) return;
-    const amount = kind === "dp" ? Number(dpAmount || 0) : sisaAkhir;
+    const amount = kind === "pelunasan" ? sisaAkhir : dpAmount;
+    const payKind = kind === "pelunasan" ? "pelunasan" : "dp";
     if (amount <= 0) return;
     await supabase.from("payments").insert({
       order_id: customerOrders[0].id,
-      kind,
+      kind: payKind,
       amount,
       paid_at: new Date().toISOString().slice(0, 10),
       bank_account: bankAccount,
@@ -128,25 +192,43 @@ export default function InvoicesPage() {
           <label className="text-sm flex flex-col gap-1">
             <span className="text-gray-600 font-medium text-xs">Jenis Invoice</span>
             <select className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-              value={kind} onChange={(e) => setKind(e.target.value as "dp" | "pelunasan")}>
+              value={kind} onChange={(e) => setKind(e.target.value as "dp" | "pelunasan" | "mix")}>
               <option value="dp">Invoice DP</option>
               <option value="pelunasan">Invoice Pelunasan</option>
+              <option value="mix">Invoice (mix DP & Pelunasan)</option>
             </select>
           </label>
           <label className="text-sm flex flex-col gap-1">
             <span className="text-gray-600 font-medium text-xs">No. Rekening</span>
-            <input className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-              value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
+            <select className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+              value={bankAccount} onChange={(e) => setBankAccount(e.target.value)}>
+              {BANK_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
           </label>
-          {kind === "dp" ? (
-            <label className="text-sm flex flex-col gap-1">
-              <span className="text-gray-600 font-medium text-xs">Nominal DP</span>
-              <input type="number"
-                className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
-                value={dpAmount} onChange={(e) => setDpAmount(e.target.value)}
-                placeholder={total > 0 ? `Saran: ${Math.round(total * 0.5)}` : "0"} />
-            </label>
-          ) : (
+
+          {(kind === "dp" || kind === "mix") && (
+            <>
+              <label className="text-sm flex flex-col gap-1">
+                <span className="text-gray-600 font-medium text-xs">Nominal DP</span>
+                <select className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                  value={dpPercent} onChange={(e) => setDpPercent(e.target.value)}>
+                  <option value="15">15%</option>
+                  <option value="25">25%</option>
+                  <option value="50">50%</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </label>
+              {dpPercent === "custom" && (
+                <label className="text-sm flex flex-col gap-1">
+                  <span className="text-gray-600 font-medium text-xs">Nominal DP (Custom)</span>
+                  <input type="number"
+                    className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                    value={customDpAmount} onChange={(e) => setCustomDpAmount(e.target.value)} placeholder="0" />
+                </label>
+              )}
+            </>
+          )}
+          {(kind === "pelunasan" || kind === "mix") && (
             <label className="text-sm flex flex-col gap-1">
               <span className="text-gray-600 font-medium text-xs">Ongkos Kirim</span>
               <input type="number"
@@ -187,6 +269,12 @@ export default function InvoicesPage() {
                 <div className="flex justify-between py-2 bg-amber-50 rounded-lg px-3 mt-2">
                   <span className="text-amber-700 font-semibold">Sisa Akhir (+ ongkir)</span>
                   <span className="text-amber-800 font-bold text-base">{formatIDR(sisaAkhir)}</span>
+                </div>
+              )}
+              {kind === "dp" && (
+                <div className="flex justify-between py-2 bg-amber-50 rounded-lg px-3 mt-2">
+                  <span className="text-amber-700 font-semibold">Nominal DP ({dpPercent === "custom" ? "Custom" : `${dpPercent}%`})</span>
+                  <span className="text-amber-800 font-bold text-base">{formatIDR(dpAmount)}</span>
                 </div>
               )}
             </div>
