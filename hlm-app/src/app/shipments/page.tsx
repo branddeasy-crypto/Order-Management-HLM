@@ -66,6 +66,40 @@ export default function ShipmentsPage() {
     return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
   }, [shipments, orders]);
 
+  function downloadExcelAll() {
+    if (queueGroups.length === 0) return;
+
+    const blocks = queueGroups.map(([qn, group]) => {
+      const lines = [
+        `Antrian ke-${qn}`,
+        `Nama Penerima : ${group.customer?.receiver_name || group.customer?.whatsapp_name}`,
+        `Alamat : ${group.customer?.address ?? "-"}`,
+        `No telp : ${group.customer?.receiver_phone || group.customer?.whatsapp_number}`,
+        `Ekspedisi : ${group.expedition ?? "-"}`,
+        ``,
+        `Judul Buku :`,
+        ...group.items.map((o) => `${o.books?.title} || ${o.books?.format} || QTY ${o.qty}`),
+      ];
+      return lines.join("<br/>");
+    });
+
+    const cellStyle = "border:1px solid #000;padding:8px;vertical-align:top;width:50%;font-family:Arial,sans-serif;font-size:12px;";
+    const rows = blocks
+      .map((b) => `<tr><td style="${cellStyle}">${b}</td><td style="${cellStyle}">${b}</td></tr>`)
+      .join("");
+    const html = `<table border="1" style="border-collapse:collapse;width:100%;">${rows}</table>`;
+
+    const blob = new Blob(["﻿", html], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "antrian_pengiriman.xls";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function copySlip(qn: number, group: { customer?: Customer; expedition?: string | null; items: Order[] }) {
     const text = [
       `Antrian ke-${qn}`,
@@ -127,9 +161,13 @@ export default function ShipmentsPage() {
 
       {/* Queue stats */}
       {queueGroups.length > 0 && (
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
           <span className="text-sm font-semibold text-gray-600">Antrian Pengiriman</span>
           <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full">{queueGroups.length} paket</span>
+          <button onClick={downloadExcelAll}
+            className="ml-auto text-xs px-3 py-1.5 rounded-lg font-medium bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors">
+            📥 Download Excel Semua Antrian
+          </button>
         </div>
       )}
 
