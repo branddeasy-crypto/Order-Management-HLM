@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabase";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: "🏠" },
@@ -15,16 +17,74 @@ const NAV = [
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isPublic = pathname?.startsWith("/status");
+  const router = useRouter();
+  const supabase = supabaseBrowser();
+  const [checking, setChecking] = useState(true);
+  const [authed, setAuthed] = useState(false);
+
+  const isPublic = pathname?.startsWith("/status") || pathname?.startsWith("/login");
+
+  useEffect(() => {
+    if (isPublic) {
+      setChecking(false);
+      return;
+    }
+
+    let active = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!active) return;
+      if (!data.user) {
+        router.replace("/login");
+      } else {
+        setAuthed(true);
+      }
+      setChecking(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        setAuthed(false);
+        router.replace("/login");
+      } else {
+        setAuthed(true);
+      }
+    });
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, isPublic]);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.replace("/login");
+  }
 
   if (isPublic) {
+    // Public/customer-facing pages: no admin sidebar
     return <main className="min-h-screen" style={{ background: "var(--background)" }}>{children}</main>;
+  }
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--background)" }}>
+        <div className="text-purple-400 text-sm">Memuat...</div>
+      </div>
+    );
+  }
+
+  if (!authed) {
+    return null;
   }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
+      {/* Sidebar */}
       <nav className="md:w-60 md:min-h-screen md:flex-shrink-0 flex flex-col"
         style={{ background: "linear-gradient(180deg, #6d28d9 0%, #7c3aed 40%, #8b5cf6 100%)" }}>
+        {/* Logo area */}
         <div className="px-5 py-5 border-b border-purple-500/40">
           <div className="flex items-center gap-2">
             <span className="text-2xl">📖</span>
@@ -34,6 +94,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
+        {/* Nav links */}
         <ul className="flex md:flex-col overflow-x-auto md:overflow-visible py-2 flex-1">
           {NAV.map((item) => (
             <li key={item.href} className="shrink-0">
@@ -46,12 +107,23 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               </Link>
             </li>
           ))}
+          <li className="shrink-0">
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 px-5 py-2.5 text-sm text-purple-100 hover:bg-white/20 hover:text-white transition-colors whitespace-nowrap rounded-lg mx-2 my-0.5 w-full text-left"
+            >
+              <span className="text-base">🚪</span>
+              <span className="font-medium">Logout</span>
+            </button>
+          </li>
         </ul>
+        {/* Bottom badge */}
         <div className="px-5 py-4 hidden md:block">
           <div className="text-purple-300 text-xs text-center opacity-70">✨ HLM v1.0</div>
         </div>
       </nav>
 
+      {/* Main content */}
       <main className="flex-1 p-4 md:p-8 min-h-screen" style={{ background: "var(--background)" }}>
         {children}
       </main>
