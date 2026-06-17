@@ -22,8 +22,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [authed, setAuthed] = useState(false);
 
-  const isPublic = pathname?.startsWith("/status") || pathname?.startsWith("/login");
-
+  const isPublic = pathname?.startsWith("/status") || pathname?.startsWith("/login") || pathname?.startsWith("/catalog");
   useEffect(() => {
     if (isPublic) {
       setChecking(false);
