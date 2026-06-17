@@ -47,6 +47,8 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [receivedAmount, setReceivedAmount] = useState("");
+  const [showManual, setShowManual] = useState(false);
+  const [manualInputs, setManualInputs] = useState<Record<string, { kind: "dp" | "pelunasan"; amount: string; date: string }>>({});
 
   async function load() {
     setLoading(true);
@@ -67,7 +69,6 @@ export default function InvoicesPage() {
   const customer = customers.find((c) => c.id === customerId);
   const customerOrders = useMemo(() => orders.filter((o) => o.customer_id === customerId), [orders, customerId]);
 
-  // Saat customer berganti, default pilih semua bukunya
   useEffect(() => {
     setSelectedOrderIds(new Set(customerOrders.map((o) => o.id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,7 +83,6 @@ export default function InvoicesPage() {
     });
   }
 
-  // Hanya buku yang dicentang yang masuk ke perhitungan & invoice
   const selectedOrders = customerOrders.filter((o) => selectedOrderIds.has(o.id));
   const selectedOrderIdsArr = selectedOrders.map((o) => o.id);
   const selectedPayments = payments.filter((p) => selectedOrderIdsArr.includes(p.order_id));
@@ -95,20 +95,17 @@ export default function InvoicesPage() {
 
   const dpAmount = dpPercent === "custom" ? Number(customDpAmount || 0) : Math.round(total * (Number(dpPercent) / 100));
 
-  // Klasifikasi otomatis per-buku berdasarkan status order: pending/confirmed/hold -> perlu DP, dp_paid -> perlu Pelunasan
   const dpOrders = selectedOrders.filter((o) => o.status === "pending" || o.status === "confirmed" || o.status === "hold");
   const pelunasanOrders = selectedOrders.filter((o) => o.status === "dp_paid");
   const totalDpOrders = dpOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
   const totalPelunasanOrders = pelunasanOrders.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
 
-  // Tagihan sebelum dikurangi saldo deposit (kelebihan transfer sebelumnya)
   const billedMixDpAmount = dpPercent === "custom" ? dpAmount : Math.round(totalDpOrders * (Number(dpPercent) / 100));
   const billedAmount = kind === "pelunasan" ? sisaAkhir : kind === "dp" ? dpAmount : (totalPelunasanOrders + billedMixDpAmount + Number(shippingCost || 0) + Number(packingFee || 0));
   const creditAvailable = customer?.credit_balance ?? 0;
   const creditUsed = Math.min(creditAvailable, Math.max(0, billedAmount));
   const amountAfterCredit = billedAmount - creditUsed;
 
-  // Auto-detect jenis invoice (hanya untuk judul) berdasarkan buku yang dipilih
   useEffect(() => {
     if (selectedOrders.length === 0) return;
     const hasDpPaid = selectedOrders.some((o) => o.status === "dp_paid");
@@ -171,7 +168,6 @@ export default function InvoicesPage() {
       ].join("\n");
     }
 
-    // mix: kombinasi Pelunasan (untuk order yang sudah DP) & DownPayment (untuk order baru)
     const dpLines = dpOrders.map(
       (o, i) => `${i + 1}. ${o.books?.title} (${o.books?.format}) x${o.qty} - ${formatIDR((o.books?.price_idr ?? 0) * o.qty)}${o.books?.status === "oos" ? " [OOS - akan dikonfirmasi ulang]" : ""}`
     );
@@ -185,11 +181,7 @@ export default function InvoicesPage() {
       `*Invoice  - ${customer.whatsapp_name}*`,
       `Grup ${customer.whatsapp_group ?? "-"}`,
       ``,
-      ...(pelunasanOrders.length > 0 ? [
-        `*Pelunasan*`,
-        ...pelunasanLines,
-        ``,
-      ] : []),
+      ...(pelunasanOrders.length > 0 ? [`*Pelunasan*`, ...pelunasanLines, ``] : []),
       ...(dpOrders.length > 0 ? [
         `*DownPayment*`,
         ...dpLines,
@@ -216,8 +208,6 @@ export default function InvoicesPage() {
     const ongkirPacking = Number(shippingCost || 0) + Number(packingFee || 0);
     const today = new Date().toISOString().slice(0, 10);
 
-    // Helper: buat payment rows per-order secara proporsional berdasarkan harga buku
-    // agar saat invoice per-buku nanti, DP tercatat benar per buku (tidak menumpuk di order[0])
     function splitPayments(
       orderList: Order[],
       totalValue: number,
@@ -231,41 +221,25 @@ export default function InvoicesPage() {
         const isLast = idx === orderList.length - 1;
         const portion = isLast ? remaining : Math.round((orderValue / totalValue) * totalPayment);
         remaining -= portion;
-        return {
-          order_id: o.id,
-          kind: payKind,
-          amount: portion,
-          paid_at: today,
-          bank_account: bankAccount,
-        };
+        return { order_id: o.id, kind: payKind, amount: portion, paid_at: today, bank_account: bankAccount };
       });
     }
 
     let rows: { order_id: string; kind: "dp" | "pelunasan"; amount: number; paid_at: string; bank_account: string }[] = [];
 
     if (kind === "dp") {
-      // DP: split proporsional ke semua dpOrders (buku Pending/Dikonfirmasi/Hold yang dicentang)
       rows = splitPayments(dpOrders.length > 0 ? dpOrders : selectedOrders, total, dpAmount, "dp");
     } else if (kind === "pelunasan") {
-      // Pelunasan: split proporsional ke semua pelunasanOrders, ongkir masuk ke buku terakhir
       const baseRows = splitPayments(
         pelunasanOrders.length > 0 ? pelunasanOrders : selectedOrders,
-        total,
-        total - totalDp,
-        "pelunasan"
+        total, total - totalDp, "pelunasan"
       );
-      // Tambahkan ongkir+packing ke row terakhir
-      if (baseRows.length > 0 && ongkirPacking > 0) {
-        baseRows[baseRows.length - 1].amount += ongkirPacking;
-      }
+      if (baseRows.length > 0 && ongkirPacking > 0) baseRows[baseRows.length - 1].amount += ongkirPacking;
       rows = baseRows;
     } else {
-      // mix: split DP ke dpOrders, split pelunasan ke pelunasanOrders (ongkir ke buku terakhir pelunasan)
       const dpRows = splitPayments(dpOrders, totalDpOrders, mixDpAmount, "dp");
       const pelRows = splitPayments(pelunasanOrders, totalPelunasanOrders, totalPelunasanOrders - totalDp, "pelunasan");
-      if (pelRows.length > 0 && ongkirPacking > 0) {
-        pelRows[pelRows.length - 1].amount += ongkirPacking;
-      }
+      if (pelRows.length > 0 && ongkirPacking > 0) pelRows[pelRows.length - 1].amount += ongkirPacking;
       rows = [...pelRows, ...dpRows];
     }
 
@@ -274,17 +248,11 @@ export default function InvoicesPage() {
 
     await supabase.from("payments").insert(rows);
 
-    // Update status buku otomatis sesuai jenis invoice
     const idsToDpPaid = (kind === "dp" || kind === "mix") ? dpOrders.map((o) => o.id) : [];
     const idsToPaidOff = (kind === "pelunasan" || kind === "mix") ? pelunasanOrders.map((o) => o.id) : [];
-    if (idsToDpPaid.length > 0) {
-      await supabase.from("orders").update({ status: "dp_paid" }).in("id", idsToDpPaid);
-    }
-    if (idsToPaidOff.length > 0) {
-      await supabase.from("orders").update({ status: "paid_off" }).in("id", idsToPaidOff);
-    }
+    if (idsToDpPaid.length > 0) await supabase.from("orders").update({ status: "dp_paid" }).in("id", idsToDpPaid);
+    if (idsToPaidOff.length > 0) await supabase.from("orders").update({ status: "paid_off" }).in("id", idsToPaidOff);
 
-    // Update saldo deposit customer
     const received = Number(receivedAmount || amountAfterCredit);
     const excess = Math.max(0, received - amountAfterCredit);
     const newCreditBalance = creditAvailable - creditUsed + excess;
@@ -307,9 +275,30 @@ export default function InvoicesPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function saveManualPayments() {
+    const rows = Object.entries(manualInputs)
+      .filter(([, v]) => v.amount && Number(v.amount) > 0)
+      .map(([orderId, v]) => ({
+        order_id: orderId,
+        kind: v.kind,
+        amount: Number(v.amount),
+        paid_at: v.date || new Date().toISOString().slice(0, 10),
+        bank_account: bankAccount,
+      }));
+    if (rows.length === 0) return alert("Belum ada nominal yang diisi.");
+    await supabase.from("payments").insert(rows);
+    for (const row of rows) {
+      const newStatus = row.kind === "dp" ? "dp_paid" : "paid_off";
+      await supabase.from("orders").update({ status: newStatus }).eq("id", row.order_id);
+    }
+    setManualInputs({});
+    setShowManual(false);
+    load();
+    alert(`${rows.length} pembayaran berhasil disimpan! ✅`);
+  }
+
   return (
     <div>
-      {/* Page header */}
       <div className="flex items-center gap-3 mb-2">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-xl shadow-sm">🧾</div>
         <div>
@@ -319,7 +308,6 @@ export default function InvoicesPage() {
       </div>
       <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 mb-6" />
 
-      {/* Settings form */}
       <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 mb-6">
         <h2 className="text-sm font-semibold text-amber-700 mb-3">⚙️ Pengaturan Invoice</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -347,7 +335,6 @@ export default function InvoicesPage() {
               {BANK_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
             </select>
           </label>
-
           {(kind === "dp" || kind === "mix") && (
             <>
               <label className="text-sm flex flex-col gap-1">
@@ -421,10 +408,8 @@ export default function InvoicesPage() {
               <div className="space-y-1.5">
                 {customerOrders.map((o) => (
                   <label key={o.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer border border-gray-50">
-                    <input type="checkbox"
-                      className="w-4 h-4 accent-amber-500"
-                      checked={selectedOrderIds.has(o.id)}
-                      onChange={() => toggleOrder(o.id)} />
+                    <input type="checkbox" className="w-4 h-4 accent-amber-500"
+                      checked={selectedOrderIds.has(o.id)} onChange={() => toggleOrder(o.id)} />
                     <span className="flex-1 text-sm text-gray-700">
                       {o.books?.title} <span className="text-gray-400">({o.books?.format}) x{o.qty}</span>
                     </span>
@@ -441,6 +426,75 @@ export default function InvoicesPage() {
             </p>
           </div>
 
+          {/* Input Pembayaran Manual */}
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm lg:col-span-2">
+            <button onClick={() => setShowManual((v) => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 text-sm font-semibold text-gray-600 hover:bg-gray-50 rounded-2xl transition-colors">
+              <span className="flex items-center gap-2">
+                <span className="text-lg">📝</span>
+                Input Riwayat Pembayaran <span className="text-xs font-normal text-gray-400">(untuk data sebelum pakai sistem ini)</span>
+              </span>
+              <span className="text-gray-400">{showManual ? "▲" : "▼"}</span>
+            </button>
+            {showManual && (
+              <div className="px-5 pb-5">
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-4">
+                  ⚠️ Input pembayaran di sini langsung tersimpan ke database dan mengubah status order. Gunakan hanya untuk mencatat pembayaran lama yang belum terekam.
+                </p>
+                <div className="space-y-3">
+                  {customerOrders.map((o) => {
+                    const inp = manualInputs[o.id] ?? { kind: "dp", amount: "", date: "" };
+                    const orderPayments = payments.filter((p) => p.order_id === o.id);
+                    const paidDp = orderPayments.filter((p) => p.kind === "dp").reduce((s, p) => s + p.amount, 0);
+                    const paidPel = orderPayments.filter((p) => p.kind === "pelunasan").reduce((s, p) => s + p.amount, 0);
+                    return (
+                      <div key={o.id} className="border border-gray-100 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                          <div>
+                            <span className="font-medium text-sm text-gray-800">{o.books?.title}</span>
+                            <span className="text-gray-400 text-xs ml-2">({o.books?.format}) - {formatIDR((o.books?.price_idr ?? 0) * o.qty)}</span>
+                          </div>
+                          <div className="flex gap-2 text-xs">
+                            {paidDp > 0 && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">DP: {formatIDR(paidDp)}</span>}
+                            {paidPel > 0 && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Lunas: {formatIDR(paidPel)}</span>}
+                            <span className={`px-2 py-0.5 rounded-full ${STATUS_BADGE[o.status] ?? "bg-gray-100 text-gray-600"}`}>
+                              {STATUS_LABEL[o.status] ?? o.status}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <select
+                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-amber-400"
+                            value={inp.kind}
+                            onChange={(e) => setManualInputs((prev) => ({ ...prev, [o.id]: { ...inp, kind: e.target.value as "dp" | "pelunasan" } }))}
+                          >
+                            <option value="dp">DP</option>
+                            <option value="pelunasan">Pelunasan</option>
+                          </select>
+                          <input type="number" placeholder="Nominal (Rp)"
+                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-amber-400"
+                            value={inp.amount}
+                            onChange={(e) => setManualInputs((prev) => ({ ...prev, [o.id]: { ...inp, amount: e.target.value } }))}
+                          />
+                          <input type="date"
+                            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-amber-400"
+                            value={inp.date}
+                            onChange={(e) => setManualInputs((prev) => ({ ...prev, [o.id]: { ...inp, date: e.target.value } }))}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button onClick={saveManualPayments}
+                  className="mt-4 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md"
+                  style={{ background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)" }}>
+                  💾 Simpan Semua Pembayaran yang Diisi
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Summary */}
           <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
             <h2 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
@@ -448,7 +502,7 @@ export default function InvoicesPage() {
             </h2>
             <div className="space-y-2 text-sm">
               {[
-                { label: "Total Tagihan Buku (terpilih)", value: formatIDR(total), bold: true, color: "text-gray-800" },
+                { label: "Total Tagihan Buku (terpilih)", value: formatIDR(total), color: "text-gray-800" },
                 { label: "Total DP Tercatat", value: formatIDR(totalDp), color: "text-gray-600" },
                 { label: "Total Pelunasan Tercatat", value: formatIDR(totalPelunasan), color: "text-gray-600" },
                 { label: "Sisa setelah DP", value: formatIDR(sisaSetelahDp), color: "text-amber-700" },
@@ -483,7 +537,6 @@ export default function InvoicesPage() {
                 </div>
               )}
             </div>
-
             <label className="text-sm flex flex-col gap-1 mt-3">
               <span className="text-gray-600 font-medium text-xs">Nominal Diterima (isi jika berbeda dari tagihan, mis. customer transfer lebih)</span>
               <input type="number"
@@ -496,7 +549,6 @@ export default function InvoicesPage() {
                 </span>
               )}
             </label>
-
             <div className="mt-3 flex gap-2 flex-wrap">
               <button onClick={copyInvoice}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md"
