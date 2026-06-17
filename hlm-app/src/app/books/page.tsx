@@ -14,7 +14,7 @@ const EMPTY = {
   price_currency: "GBP" as "GBP" | "USD" | "AUD",
   price_idr: "",
   eta: "",
-  status: "available" as "available" | "oos",
+  status: "available" as "available" | "ready_stock" | "oos",
 };
 
 const FORMAT_LABELS: Record<Book["format"], string> = {
@@ -97,7 +97,7 @@ export default function BooksPage() {
       price_currency: (b.price_currency ?? "GBP") as "GBP" | "USD" | "AUD",
       price_idr: b.price_idr?.toString() ?? "",
       eta: b.eta ?? "",
-      status: b.status,
+      status: b.status as "available" | "ready_stock" | "oos",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -109,7 +109,8 @@ export default function BooksPage() {
   }
 
   async function toggleStatus(b: Book) {
-    await supabase.from("books").update({ status: b.status === "available" ? "oos" : "available" }).eq("id", b.id);
+    const next = b.status === "available" ? "ready_stock" : b.status === "ready_stock" ? "oos" : "available";
+    await supabase.from("books").update({ status: next }).eq("id", b.id);
     load();
   }
 
@@ -146,7 +147,7 @@ export default function BooksPage() {
         price_currency: (VALID_CURRENCIES.includes(r[5]) ? r[5] : "GBP") as "GBP" | "USD" | "AUD",
         price_idr: Number(r[6]) || 0,
         eta: r[7] || null,
-        status: (r[8] === "oos" ? "oos" : "available") as "available" | "oos",
+        status: (r[8] === "oos" ? "oos" : r[8] === "ready_stock" ? "ready_stock" : "available") as "available" | "ready_stock" | "oos",
       }));
     if (payload.length === 0) return setError("File tidak berisi data yang valid.");
     const { error } = await supabase.from("books").insert(payload);
@@ -163,7 +164,7 @@ export default function BooksPage() {
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-400 to-purple-600 flex items-center justify-center text-xl shadow-sm">📚</div>
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Buku / PO</h1>
-          <p className="text-sm text-gray-400">Daftar buku per batch — publisher, ISBN, harga, ETA, dan status stok.</p>
+          <p className="text-sm text-gray-400">Daftar buku per batch - publisher, ISBN, harga, ETA, dan status stok.</p>
         </div>
       </div>
       <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-400 to-purple-600 mb-6" />
@@ -222,8 +223,9 @@ export default function BooksPage() {
           <Field label="ETA (Bulan/Tahun)" value={form.eta} onChange={(v) => setForm({ ...form, eta: v })} type="month" />
           <label className="text-sm flex flex-col gap-1">
             <span className="text-gray-600 font-medium text-xs">Status</span>
-            <select className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as "available" | "oos" })}>
-              <option value="available">Tersedia</option>
+            <select className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as "available" | "ready_stock" | "oos" })}>
+              <option value="available">PO (Pre-Order)</option>
+              <option value="ready_stock">Ready Stock</option>
               <option value="oos">Out of Stock (OOS)</option>
             </select>
           </label>
@@ -290,8 +292,12 @@ export default function BooksPage() {
                 <td className="px-5 py-3 text-gray-500">{b.eta}</td>
                 <td className="px-5 py-3">
                   <button onClick={() => toggleStatus(b)}
-                    className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${b.status === "oos" ? "bg-red-100 text-red-700 hover:bg-red-200" : "bg-green-100 text-green-700 hover:bg-green-200"}`}>
-                    {b.status === "oos" ? "❌ OOS" : "✅ Tersedia"}
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+                      b.status === "oos" ? "bg-red-100 text-red-700 hover:bg-red-200"
+                      : b.status === "ready_stock" ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                      : "bg-green-100 text-green-700 hover:bg-green-200"
+                    }`}>
+                    {b.status === "oos" ? "❌ OOS" : b.status === "ready_stock" ? "📦 Ready Stock" : "🛒 PO"}
                   </button>
                 </td>
                 <td className="px-5 py-3 text-right whitespace-nowrap">
