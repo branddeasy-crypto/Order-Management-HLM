@@ -19,7 +19,7 @@ export type Book = {
   price_currency: 'GBP' | 'USD' | 'AUD' | null
   price_idr: number
   eta: string | null
-  status: 'available' | 'oos'
+  status: 'available' | 'ready_stock' | 'oos'
 }
 
 export type OrderStatus = 'pending' | 'confirmed' | 'hold' | 'dp_paid' | 'paid_off' | 'queued' | 'shipped'
