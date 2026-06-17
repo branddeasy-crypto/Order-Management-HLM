@@ -50,6 +50,10 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [noteEdits, setNoteEdits] = useState<Record<string, string>>({});
   const [noteSaved, setNoteSaved] = useState<Record<string, boolean>>({});
+  // Input pembayaran opsional saat tambah order (untuk migrasi data lama)
+  const [payKind, setPayKind] = useState<"none" | "dp" | "pelunasan">("none");
+  const [payAmount, setPayAmount] = useState("");
+  const [payDate, setPayDate] = useState("");
 
   async function load() {
     setLoading(true);
@@ -72,15 +76,36 @@ export default function OrdersPage() {
     e.preventDefault();
     setError(null);
     if (!customerId || !bookId) return setError("Pilih customer dan buku.");
-    const { error } = await supabase.from("orders").insert({
-      customer_id: customerId,
-      book_id: bookId,
-      qty: Number(qty),
-      status: "pending",
-    });
+
+    // Tentukan status awal berdasarkan pembayaran yang diinput
+    const initialStatus: OrderStatus =
+      payKind === "pelunasan" ? "paid_off" :
+      payKind === "dp" ? "dp_paid" :
+      "pending";
+
+    const { data: newOrder, error } = await supabase
+      .from("orders")
+      .insert({ customer_id: customerId, book_id: bookId, qty: Number(qty), status: initialStatus })
+      .select()
+      .single();
     if (error) return setError(error.message);
+
+    // Kalau ada pembayaran yang diisi, simpan sekaligus
+    if (payKind !== "none" && payAmount && Number(payAmount) > 0 && newOrder) {
+      await supabase.from("payments").insert({
+        order_id: newOrder.id,
+        kind: payKind,
+        amount: Number(payAmount),
+        paid_at: payDate || new Date().toISOString().slice(0, 10),
+        bank_account: "-",
+      });
+    }
+
     setBookId("");
     setQty("1");
+    setPayKind("none");
+    setPayAmount("");
+    setPayDate("");
     load();
   }
 
@@ -191,6 +216,41 @@ export default function OrdersPage() {
               className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
               value={qty} onChange={(e) => setQty(e.target.value)} />
           </label>
+          {/* Pembayaran opsional (untuk data lama) */}
+          <div className="sm:col-span-2 lg:col-span-4">
+            <div className="border border-dashed border-blue-200 rounded-xl p-3 bg-blue-50/50">
+              <p className="text-xs text-blue-500 font-medium mb-2">💳 Pembayaran (opsional — isi jika order ini sudah ada pembayaran sebelumnya)</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <select
+                  className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-blue-400"
+                  value={payKind}
+                  onChange={(e) => setPayKind(e.target.value as "none" | "dp" | "pelunasan")}
+                >
+                  <option value="none">-- Belum ada pembayaran --</option>
+                  <option value="dp">Sudah bayar DP</option>
+                  <option value="pelunasan">Sudah lunas</option>
+                </select>
+                {payKind !== "none" && (
+                  <>
+                    <input
+                      type="number"
+                      placeholder="Nominal yang dibayar (Rp)"
+                      className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-blue-400"
+                      value={payAmount}
+                      onChange={(e) => setPayAmount(e.target.value)}
+                    />
+                    <input
+                      type="date"
+                      className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:border-blue-400"
+                      value={payDate}
+                      onChange={(e) => setPayDate(e.target.value)}
+                    />
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
           <button type="submit"
             className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md col-span-1"
             style={{ background: "linear-gradient(135deg, #60a5fa 0%, #6366f1 100%)" }}>
