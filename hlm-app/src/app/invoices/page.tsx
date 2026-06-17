@@ -1,3 +1,4 @@
+```tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -213,37 +214,70 @@ export default function InvoicesPage() {
     if (!customer || selectedOrders.length === 0) return;
 
     const mixDpAmount = dpPercent === "custom" ? dpAmount : Math.round(totalDpOrders * (Number(dpPercent) / 100));
+    const ongkirPacking = Number(shippingCost || 0) + Number(packingFee || 0);
+    const today = new Date().toISOString().slice(0, 10);
 
-    // Tentukan nominal & jenis pembayaran yang dicatat sesuai jenis invoice
-    let amount = 0;
-    let payKind: "dp" | "pelunasan" = "dp";
-    if (kind === "pelunasan") {
-      amount = sisaAkhir;
-      payKind = "pelunasan";
-    } else if (kind === "dp") {
-      amount = dpAmount;
-      payKind = "dp";
-    } else {
-      // mix: catat sebagai pelunasan untuk buku yang sudah DP, sisanya komponen DP dianggap pembayaran DP baru
-      amount = totalPelunasanOrders + mixDpAmount + Number(shippingCost || 0) + Number(packingFee || 0);
-      payKind = pelunasanOrders.length > 0 ? "pelunasan" : "dp";
+    // Helper: buat payment rows per-order secara proporsional berdasarkan harga buku
+    // agar saat invoice per-buku nanti, DP tercatat benar per buku (tidak menumpuk di order[0])
+    function splitPayments(
+      orderList: Order[],
+      totalValue: number,
+      totalPayment: number,
+      payKind: "dp" | "pelunasan"
+    ) {
+      if (orderList.length === 0 || totalValue === 0) return [];
+      let remaining = totalPayment;
+      return orderList.map((o, idx) => {
+        const orderValue = (o.books?.price_idr ?? 0) * o.qty;
+        const isLast = idx === orderList.length - 1;
+        const portion = isLast ? remaining : Math.round((orderValue / totalValue) * totalPayment);
+        remaining -= portion;
+        return {
+          order_id: o.id,
+          kind: payKind,
+          amount: portion,
+          paid_at: today,
+          bank_account: bankAccount,
+        };
+      });
     }
-    if (amount <= 0) return;
 
-    await supabase.from("payments").insert({
-      order_id: selectedOrders[0].id,
-      kind: payKind,
-      amount,
-      paid_at: new Date().toISOString().slice(0, 10),
-      bank_account: bankAccount,
-    });
+    let rows: { order_id: string; kind: "dp" | "pelunasan"; amount: number; paid_at: string; bank_account: string }[] = [];
+
+    if (kind === "dp") {
+      // DP: split proporsional ke semua dpOrders (buku Pending/Dikonfirmasi/Hold yang dicentang)
+      rows = splitPayments(dpOrders.length > 0 ? dpOrders : selectedOrders, total, dpAmount, "dp");
+    } else if (kind === "pelunasan") {
+      // Pelunasan: split proporsional ke semua pelunasanOrders, ongkir masuk ke buku terakhir
+      const baseRows = splitPayments(
+        pelunasanOrders.length > 0 ? pelunasanOrders : selectedOrders,
+        total,
+        total - totalDp,
+        "pelunasan"
+      );
+      // Tambahkan ongkir+packing ke row terakhir
+      if (baseRows.length > 0 && ongkirPacking > 0) {
+        baseRows[baseRows.length - 1].amount += ongkirPacking;
+      }
+      rows = baseRows;
+    } else {
+      // mix: split DP ke dpOrders, split pelunasan ke pelunasanOrders (ongkir ke buku terakhir pelunasan)
+      const dpRows = splitPayments(dpOrders, totalDpOrders, mixDpAmount, "dp");
+      const pelRows = splitPayments(pelunasanOrders, totalPelunasanOrders, totalPelunasanOrders - totalDp, "pelunasan");
+      if (pelRows.length > 0 && ongkirPacking > 0) {
+        pelRows[pelRows.length - 1].amount += ongkirPacking;
+      }
+      rows = [...pelRows, ...dpRows];
+    }
+
+    const totalRecorded = rows.reduce((s, r) => s + r.amount, 0);
+    if (totalRecorded <= 0 || rows.length === 0) return;
+
+    await supabase.from("payments").insert(rows);
 
     // Update status buku otomatis sesuai jenis invoice
-    // - Buku berstatus Pending/Dikonfirmasi/Hold yang ditagih DP -> jadi "DP Terbayar"
-    // - Buku berstatus DP Terbayar yang ditagih Pelunasan -> jadi "Lunas"
     const idsToDpPaid = (kind === "dp" || kind === "mix") ? dpOrders.map((o) => o.id) : [];
     const idsToPaidOff = (kind === "pelunasan" || kind === "mix") ? pelunasanOrders.map((o) => o.id) : [];
-
     if (idsToDpPaid.length > 0) {
       await supabase.from("orders").update({ status: "dp_paid" }).in("id", idsToDpPaid);
     }
@@ -251,7 +285,7 @@ export default function InvoicesPage() {
       await supabase.from("orders").update({ status: "paid_off" }).in("id", idsToPaidOff);
     }
 
-    // Update saldo deposit customer: kurangi saldo yang dipakai, tambah kelebihan transfer baru (jika ada)
+    // Update saldo deposit customer
     const received = Number(receivedAmount || amountAfterCredit);
     const excess = Math.max(0, received - amountAfterCredit);
     const newCreditBalance = creditAvailable - creditUsed + excess;
@@ -491,3 +525,4 @@ export default function InvoicesPage() {
     </div>
   );
 }
+```
