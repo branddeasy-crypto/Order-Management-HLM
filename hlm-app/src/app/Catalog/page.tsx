@@ -5,7 +5,7 @@ import { supabaseBrowser } from "@/lib/supabase";
 import { Book, formatIDR } from "@/lib/types";
 
 // Ganti dengan nomor WhatsApp tim HLM (format 62xxx tanpa + atau spasi)
-const HLM_WA_NUMBER = "6281234567890";
+const HLM_WA_NUMBER = "6282128060003";
 
 const FORMAT_LABELS: Record<Book["format"], string> = {
   PB: "Paperback",
