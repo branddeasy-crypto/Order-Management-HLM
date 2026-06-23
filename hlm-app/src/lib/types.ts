@@ -1,3 +1,5 @@
+export type Reputation = 'baru' | 'loyal' | 'berisiko'
+
 export type Customer = {
   id: string
   whatsapp_name: string
@@ -7,7 +9,10 @@ export type Customer = {
   receiver_phone: string | null
   whatsapp_group: string | null
   credit_balance: number
+  reputation: Reputation
 }
+
+export type BookStatus = 'available' | 'ready_stock' | 'oos' | 'delay' | 'cancelled' | 'damaged'
 
 export type Book = {
   id: string
@@ -19,7 +24,7 @@ export type Book = {
   price_currency: 'GBP' | 'USD' | 'AUD' | null
   price_idr: number
   eta: string | null
-  status: 'available' | 'ready_stock' | 'oos'
+  status: BookStatus
 }
 
 export type OrderStatus = 'pending' | 'confirmed' | 'hold' | 'dp_paid' | 'paid_off' | 'queued' | 'shipped'
