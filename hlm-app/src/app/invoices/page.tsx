@@ -3,6 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { Customer, Order, Payment, formatIDR } from "@/lib/types";
+import { Customer, Order, Payment, Reputation, formatIDR } from "@/lib/types";
+
+const REPUTATION_CONFIG: Record<Reputation, { label: string; badge: string; icon: string; dpSuggestion: string }> = {
+  baru:     { label: "Baru",     badge: "bg-gray-100 text-gray-600",   icon: "🆕", dpSuggestion: "Saran DP: 40-50%" },
+  loyal:    { label: "Loyal",    badge: "bg-green-100 text-green-700", icon: "⭐", dpSuggestion: "Saran DP: 15-25%" },
+  berisiko: { label: "Berisiko", badge: "bg-red-100 text-red-700",     icon: "⚠️", dpSuggestion: "Saran DP: 50% atau tolak" },
+};
 
 const BANK_OPTIONS = [
   "Seabank 901335299369 a.n. Deasy Sherliya Trajadi",
