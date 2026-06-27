@@ -84,9 +84,13 @@ export default function ShipmentsPage() {
     });
 
     const cellStyle = "border:1px solid #000;padding:8px;vertical-align:top;width:50%;font-family:Arial,sans-serif;font-size:12px;";
-    const rows = blocks
-      .map((b) => `<tr><td style="${cellStyle}">${b}</td><td style="${cellStyle}">${b}</td></tr>`)
-      .join("");
+    const rowsArr: string[] = [];
+    for (let i = 0; i < blocks.length; i += 2) {
+      const left = blocks[i];
+      const right = blocks[i + 1] ?? "";
+      rowsArr.push(`<tr><td style="${cellStyle}">${left}</td><td style="${cellStyle}">${right}</td></tr>`);
+    }
+    const rows = rowsArr.join("");
     const html = `<table border="1" style="border-collapse:collapse;width:100%;">${rows}</table>`;
 
     const blob = new Blob(["﻿", html], { type: "application/vnd.ms-excel" });
@@ -117,7 +121,6 @@ export default function ShipmentsPage() {
 
   return (
     <div>
-      {/* Page header */}
       <div className="flex items-center gap-3 mb-2">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center text-xl shadow-sm">📦</div>
         <div>
@@ -127,7 +130,6 @@ export default function ShipmentsPage() {
       </div>
       <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-400 to-cyan-500 mb-6" />
 
-      {/* Add to queue form */}
       <div className="bg-teal-50 border border-teal-100 rounded-2xl p-5 mb-6">
         <h2 className="text-sm font-semibold text-teal-700 mb-3">➕ Masukkan ke Antrian</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
@@ -159,7 +161,6 @@ export default function ShipmentsPage() {
         )}
       </div>
 
-      {/* Queue stats */}
       {queueGroups.length > 0 && (
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <span className="text-sm font-semibold text-gray-600">Antrian Pengiriman</span>
