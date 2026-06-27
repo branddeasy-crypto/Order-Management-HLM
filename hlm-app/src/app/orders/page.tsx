@@ -88,7 +88,6 @@ export default function OrdersPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
 
-  // Ambil tanggal pembayaran pertama per order
   function getFirstPayDate(orderId: string): string | null {
     const orderPays = payments
       .filter((p) => p.order_id === orderId)
@@ -168,12 +167,12 @@ export default function OrdersPage() {
 
   const totalValue = filtered.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
 
-  // Export rekap internal (lengkap)
   const ORDER_HEADERS = [
     "Customer", "Grup", "Publisher", "ETA", "ISBN", "Judul Buku", "Format",
     "Currency", "Harga Asli", "Harga IDR", "Qty", "Subtotal IDR",
     "Status Buku", "Status Order", "Tgl Bayar Pertama", "Note",
   ];
+
   function ordersToRows(list: Order[]) {
     return list.map((o) => [
       o.customers?.whatsapp_name ?? "",
@@ -195,25 +194,26 @@ export default function OrdersPage() {
     ]);
   }
 
-  // Export khusus untuk importir (per publisher, ringkas)
   const IMPORTIR_HEADERS = ["No", "ISBN", "Judul Buku", "Format", "Currency", "Harga Asli", "Total Qty"];
+
   function importirRows(list: Order[]) {
-    // Gabungkan per buku (group by book_id), hitung total qty
     const map = new Map<string, { book: Book; totalQty: number }>();
     for (const o of list) {
       if (!o.books) continue;
       if (!map.has(o.book_id)) map.set(o.book_id, { book: o.books, totalQty: 0 });
       map.get(o.book_id)!.totalQty += o.qty;
     }
-    return Array.from(map.values()).map(({ book, totalQty }, i) => [
-      i + 1,
-      book.isbn ?? "",
-      book.title,
-      book.format,
-      book.price_currency ?? "",
-      book.price_gbp ?? "",
-      totalQty,
-    ]);
+    return Array.from(map.values())
+      .sort((a, b) => a.book.title.localeCompare(b.book.title))
+      .map(({ book, totalQty }, i) => [
+        i + 1,
+        book.isbn ?? "",
+        book.title,
+        book.format,
+        book.price_currency ?? "",
+        book.price_gbp ?? "",
+        totalQty,
+      ]);
   }
 
   return (
