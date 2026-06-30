@@ -68,6 +68,8 @@ export default function OrdersPage() {
   const [payKind, setPayKind] = useState<"none" | "dp" | "pelunasan">("none");
   const [payAmount, setPayAmount] = useState("");
   const [payDate, setPayDate] = useState("");
+  const [sortKey, setSortKey] = useState<string>("created_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   async function load() {
     setLoading(true);
@@ -166,6 +168,46 @@ export default function OrdersPage() {
   );
 
   const totalValue = filtered.reduce((sum, o) => sum + (o.books?.price_idr ?? 0) * o.qty, 0);
+
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+
+  const sorted = [...filtered].sort((a, b) => {
+    let va: string | number = "";
+    let vb: string | number = "";
+    if (sortKey === "customer") { va = a.customers?.whatsapp_name ?? ""; vb = b.customers?.whatsapp_name ?? ""; }
+    else if (sortKey === "group") { va = a.customers?.whatsapp_group ?? ""; vb = b.customers?.whatsapp_group ?? ""; }
+    else if (sortKey === "book") { va = a.books?.title ?? ""; vb = b.books?.title ?? ""; }
+    else if (sortKey === "publisher") { va = a.books?.publisher ?? ""; vb = b.books?.publisher ?? ""; }
+    else if (sortKey === "status") { va = a.status; vb = b.status; }
+    else if (sortKey === "book_status") { va = a.books?.status ?? ""; vb = b.books?.status ?? ""; }
+    else if (sortKey === "subtotal") { va = (a.books?.price_idr ?? 0) * a.qty; vb = (b.books?.price_idr ?? 0) * b.qty; }
+    else if (sortKey === "qty") { va = a.qty; vb = b.qty; }
+    else if (sortKey === "pay_date") {
+      va = getFirstPayDate(a.id) ?? "9999";
+      vb = getFirstPayDate(b.id) ?? "9999";
+    }
+    if (va < vb) return sortDir === "asc" ? -1 : 1;
+    if (va > vb) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  function SortTh({ label, skey }: { label: string; skey: string }) {
+    const active = sortKey === skey;
+    return (
+      <th
+        className={`px-4 py-3 cursor-pointer select-none whitespace-nowrap hover:text-blue-500 transition-colors ${active ? "text-blue-600" : ""}`}
+        onClick={() => toggleSort(skey)}
+      >
+        {label}{" "}
+        {active
+          ? (sortDir === "asc" ? "↑" : "↓")
+          : <span className="text-gray-300">↕</span>}
+      </th>
+    );
+  }
 
   const ORDER_HEADERS = [
     "Customer", "Grup", "Publisher", "ETA", "ISBN", "Judul Buku", "Format",
@@ -340,7 +382,7 @@ export default function OrdersPage() {
             className="px-3 py-1.5 border border-blue-200 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
             📄 Export CSV
           </button>
-          <button onClick={() => exportToExcel("rekap-order.xlsx", "Order", ORDER_HEADERS, ordersToRows(filtered))}
+          <button onClick={() => exportToExcel("rekap-order.xlsx", "Order", ORDER_HEADERS, ordersToRows(sorted))}
             className="px-3 py-1.5 border border-blue-200 rounded-lg text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
             📊 Export Excel Rekap
           </button>
@@ -351,6 +393,23 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {/* Sort indicator */}
+      {sortKey !== "created_at" && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-blue-600 bg-blue-50 border border-blue-100 px-3 py-1 rounded-full">
+            Diurutkan: <strong>{
+              { customer: "Customer", group: "Grup", book: "Judul Buku", publisher: "Publisher",
+                status: "Status Order", book_status: "Status Buku", subtotal: "Subtotal",
+                qty: "Qty", pay_date: "Tgl Bayar" }[sortKey]
+            }</strong> {sortDir === "asc" ? "(A-Z / terlama)" : "(Z-A / terbaru)"}
+          </span>
+          <button onClick={() => { setSortKey("created_at"); setSortDir("desc"); }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            Reset
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white border border-gray-100 rounded-2xl overflow-x-auto shadow-sm">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -358,19 +417,19 @@ export default function OrdersPage() {
           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{filtered.length} order</span>
         </div>
         <table className="w-full text-sm">
-          <thead className="text-left text-xs text-gray-400 uppercase tracking-wide">
+          <thead className="text-left text-xs text-gray-400 uppercase tracking-wide bg-gray-50/50">
             <tr>
-              <th className="px-4 py-3">Customer</th>
-              <th className="px-4 py-3">Grup</th>
-              <th className="px-4 py-3">Judul Buku</th>
+              <SortTh label="Customer" skey="customer" />
+              <SortTh label="Grup" skey="group" />
+              <SortTh label="Judul Buku" skey="book" />
               <th className="px-4 py-3">ISBN</th>
               <th className="px-4 py-3">Format</th>
               <th className="px-4 py-3">Currency</th>
-              <th className="px-4 py-3">Status Buku</th>
-              <th className="px-4 py-3">Qty</th>
-              <th className="px-4 py-3">Subtotal</th>
-              <th className="px-4 py-3">Status Order</th>
-              <th className="px-4 py-3">Tgl Bayar</th>
+              <SortTh label="Status Buku" skey="book_status" />
+              <SortTh label="Qty" skey="qty" />
+              <SortTh label="Subtotal" skey="subtotal" />
+              <SortTh label="Status Order" skey="status" />
+              <SortTh label="Tgl Bayar" skey="pay_date" />
               <th className="px-4 py-3">Note</th>
               <th className="px-4 py-3"></th>
             </tr>
@@ -378,9 +437,9 @@ export default function OrdersPage() {
           <tbody>
             {loading ? (
               <tr><td className="px-5 py-8 text-gray-300 text-center" colSpan={13}>⏳ Memuat data...</td></tr>
-            ) : filtered.length === 0 ? (
+            ) : sorted.length === 0 ? (
               <tr><td className="px-5 py-8 text-gray-400 text-center" colSpan={13}>📋 Belum ada order. Tambah order di atas!</td></tr>
-            ) : filtered.map((o) => {
+            ) : sorted.map((o) => {
               const firstPay = getFirstPayDate(o.id);
               return (
                 <tr key={o.id} className="border-t border-gray-50 hover:bg-blue-50/30 transition-colors">
